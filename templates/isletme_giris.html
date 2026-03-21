@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>İşletme Paneli</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0f2b3d,#1b4a6b,#2d7a9a);padding:20px}
+.card{background:#fff;border-radius:24px;padding:44px;width:100%;max-width:480px;box-shadow:0 32px 80px rgba(0,0,0,.4)}
+.logo{width:68px;height:68px;background:linear-gradient(135deg,#0f2b3d,#1b4a6b);border-radius:18px;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:30px;box-shadow:0 8px 24px rgba(15,43,61,.4)}
+h1{font-size:1.55rem;font-weight:800;color:#0f2b3d;text-align:center;margin-bottom:4px}
+.sub{color:#64748b;font-size:13px;text-align:center;margin-bottom:22px}
+.tabs{display:flex;background:#f1f5f9;border-radius:12px;padding:4px;margin-bottom:22px;gap:4px}
+.tab{flex:1;padding:9px;border:none;border-radius:9px;font-family:inherit;font-size:13.5px;font-weight:600;cursor:pointer;background:transparent;color:#64748b;transition:.2s}
+.tab.active{background:#fff;color:#0f2b3d;box-shadow:0 2px 8px rgba(0,0,0,.1)}
+.pane{display:none}.pane.active{display:block}
+.field{margin-bottom:13px}
+.field label{display:block;font-size:12.5px;font-weight:600;color:#475569;margin-bottom:5px}
+.field input,.field select{width:100%;padding:11px 13px;border:2px solid #e2e8f0;border-radius:10px;font-size:14px;font-family:inherit;color:#1e293b;outline:none;transition:.2s;background:#fff}
+.field input:focus,.field select:focus{border-color:#1b4a6b;box-shadow:0 0 0 3px rgba(27,74,107,.1)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.sec{font-size:12px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin:16px 0 10px;display:flex;align-items:center;gap:6px}
+.sec::after{content:'';flex:1;height:1px;background:#e2e8f0}
+.btn{width:100%;padding:13px;background:linear-gradient(135deg,#0f2b3d,#1b4a6b);color:#fff;border:none;border-radius:11px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:6px;transition:.2s;box-shadow:0 4px 14px rgba(15,43,61,.3)}
+.btn:hover{transform:translateY(-1px)}
+.btn:disabled{opacity:.6;cursor:not-allowed;transform:none}
+.alert{padding:10px 13px;border-radius:10px;font-size:13px;margin-bottom:12px;display:none}
+.err{background:#fef2f2;border:1.5px solid #fecaca;color:#dc2626}
+.suc{background:#f0fdf4;border:1.5px solid #bbf7d0;color:#15803d}
+.tur-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px}
+.tur-btn{padding:13px 10px;border:2px solid #e2e8f0;border-radius:11px;background:#fff;cursor:pointer;font-family:inherit;font-size:14px;font-weight:600;color:#475569;text-align:center;transition:.2s}
+.tur-btn.active{border-color:#1b4a6b;background:linear-gradient(135deg,#0f2b3d,#1b4a6b);color:#fff}
+.pw-bars{display:flex;gap:4px;margin-top:5px}
+.pw-bar{height:3px;flex:1;border-radius:3px;background:#e2e8f0;transition:.3s}
+.pw-bar.s1{background:#ef4444}.pw-bar.s2{background:#f97316}.pw-bar.s3{background:#eab308}.pw-bar.s4{background:#22c55e}
+.pw-lbl{font-size:11px;color:#94a3b8;margin-top:3px}
+.footer{text-align:center;margin-top:18px;font-size:13px;color:#64748b}
+.footer a{color:#1b4a6b;font-weight:700;text-decoration:none}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:sp .6s linear infinite;vertical-align:middle;margin-right:5px}
+@keyframes sp{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">🏪</div>
+  <h1>İşletme Paneli</h1>
+  <p class="sub">Randevularınızı kolayca yönetin</p>
+
+  <div class="tabs">
+    <button class="tab active" id="t-giris" onclick="tab('giris')">🔑 Giriş Yap</button>
+    <button class="tab" id="t-kayit" onclick="tab('kayit')">✨ Yeni Kayıt</button>
+  </div>
+
+  <!-- GİRİŞ -->
+  <div class="pane active" id="p-giris">
+    <div class="alert err" id="giris-err"></div>
+    <div class="field"><label>E-posta</label>
+      <input type="email" id="g-email" placeholder="ornek@email.com" onkeydown="if(event.key==='Enter')giris()">
+    </div>
+    <div class="field"><label>Şifre</label>
+      <input type="password" id="g-sifre" placeholder="••••••••" onkeydown="if(event.key==='Enter')giris()">
+    </div>
+    <button class="btn" id="g-btn" onclick="giris()">→ Giriş Yap</button>
+  </div>
+
+  <!-- KAYIT -->
+  <div class="pane" id="p-kayit">
+    <div class="alert err" id="kayit-err"></div>
+    <div class="alert suc" id="kayit-suc"></div>
+
+    <div class="sec">👤 Yönetici Bilgileri</div>
+    <div class="row2">
+      <div class="field"><label>Ad Soyad *</label>
+        <input type="text" id="k-ad" placeholder="Adınız Soyadınız">
+      </div>
+      <div class="field"><label>Telefon</label>
+        <input type="tel" id="k-tel" placeholder="05XX XXX XX XX">
+      </div>
+    </div>
+    <div class="field"><label>E-posta *</label>
+      <input type="email" id="k-email" placeholder="siz@email.com">
+    </div>
+    <div class="row2">
+      <div class="field"><label>Şifre * <span style="font-weight:400;color:#94a3b8">(min 6)</span></label>
+        <input type="password" id="k-sifre" placeholder="••••••••" oninput="pwGuc(this.value)">
+        <div class="pw-bars"><div class="pw-bar" id="b1"></div><div class="pw-bar" id="b2"></div><div class="pw-bar" id="b3"></div><div class="pw-bar" id="b4"></div></div>
+        <div class="pw-lbl" id="pw-lbl"></div>
+      </div>
+      <div class="field"><label>Şifre Tekrar *</label>
+        <input type="password" id="k-sifre2" placeholder="••••••••">
+      </div>
+    </div>
+
+    <div class="sec">🏪 İşletme Bilgileri</div>
+    <div class="field">
+      <label>İşletme Türü *</label>
+      <div class="tur-grid">
+        <button type="button" class="tur-btn active" id="tur-berber" onclick="secTur('berber')">✂️ Berber</button>
+        <button type="button" class="tur-btn" id="tur-epilasyon" onclick="secTur('epilasyon')">✨ Epilasyon Merkezi</button>
+      </div>
+    </div>
+    <div class="field"><label>İşletme Adı *</label>
+      <input type="text" id="k-iad" placeholder="ör. Ahmet Berber Salonu">
+    </div>
+    <div class="row2">
+      <div class="field"><label>İşletme Telefonu</label>
+        <input type="tel" id="k-itel" placeholder="0XXX XXX XX XX">
+      </div>
+      <div class="field"><label>Adres</label>
+        <input type="text" id="k-adres" placeholder="Mahalle, cadde...">
+      </div>
+    </div>
+    <button class="btn" id="k-btn" onclick="kayit()">✨ İşletme &amp; Hesap Oluştur</button>
+  </div>
+
+  <div class="footer"><a href="http://localhost:5000">← Kullanıcı Sitesine Dön</a></div>
+</div>
+
+<script>
+var secilenTur = 'berber';
+
+function tab(t) {
+  document.querySelectorAll('.pane').forEach(function(el){ el.classList.remove('active'); });
+  document.querySelectorAll('.tab').forEach(function(el){ el.classList.remove('active'); });
+  document.getElementById('p-' + t).classList.add('active');
+  document.getElementById('t-' + t).classList.add('active');
+}
+
+function secTur(t) {
+  secilenTur = t;
+  document.getElementById('tur-berber').classList.toggle('active', t === 'berber');
+  document.getElementById('tur-epilasyon').classList.toggle('active', t === 'epilasyon');
+  var inp = document.getElementById('k-iad');
+  if (!inp.value) {
+    inp.placeholder = t === 'berber' ? 'ör. Ahmet Berber Salonu' : 'ör. Güzellik & Epilasyon Merkezi';
+  }
+}
+
+function pwGuc(val) {
+  var bars = ['b1','b2','b3','b4'];
+  bars.forEach(function(id){ document.getElementById(id).className = 'pw-bar'; });
+  var s = 0;
+  if (val.length >= 6)  s++;
+  if (val.length >= 10) s++;
+  if (/[A-Z]/.test(val) && /[0-9]/.test(val)) s++;
+  if (/[^A-Za-z0-9]/.test(val)) s++;
+  for (var i = 0; i < s; i++) document.getElementById(bars[i]).classList.add('s' + s);
+  document.getElementById('pw-lbl').textContent = val.length > 0 ? ['','Zayıf','Orta','İyi','Güçlü'][s] : '';
+}
+
+function showAlert(id, type, msg) {
+  var el = document.getElementById(id);
+  el.className = 'alert ' + type;
+  el.textContent = (type === 'err' ? '⚠️ ' : '✅ ') + msg;
+  el.style.display = 'block';
+}
+function hideAlert(id) { document.getElementById(id).style.display = 'none'; }
+
+async function giris() {
+  var email = document.getElementById('g-email').value.trim();
+  var sifre = document.getElementById('g-sifre').value;
+  var btn   = document.getElementById('g-btn');
+  hideAlert('giris-err');
+  if (!email || !sifre) { showAlert('giris-err','err','E-posta ve şifre zorunludur!'); return; }
+  btn.innerHTML = '<span class="spin"></span>Giriş yapılıyor...';
+  btn.disabled = true;
+  try {
+    var res = await fetch('/api/giris', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({email: email, sifre: sifre})
+    });
+    var data = await res.json();
+    if (data.success) {
+      window.location.href = '/';
+    } else {
+      showAlert('giris-err', 'err', data.message || 'Hatalı e-posta veya şifre!');
+    }
+  } catch(e) {
+    showAlert('giris-err', 'err', 'Sunucuya bağlanılamadı! (' + e.message + ')');
+  } finally {
+    btn.innerHTML = '→ Giriş Yap';
+    btn.disabled = false;
+  }
+}
+
+async function kayit() {
+  var ad     = document.getElementById('k-ad').value.trim();
+  var tel    = document.getElementById('k-tel').value.trim();
+  var email  = document.getElementById('k-email').value.trim();
+  var sifre  = document.getElementById('k-sifre').value;
+  var sifre2 = document.getElementById('k-sifre2').value;
+  var iad    = document.getElementById('k-iad').value.trim();
+  var itel   = document.getElementById('k-itel').value.trim();
+  var adres  = document.getElementById('k-adres').value.trim();
+  var btn    = document.getElementById('k-btn');
+
+  hideAlert('kayit-err'); hideAlert('kayit-suc');
+
+  if (!ad)           { showAlert('kayit-err','err','Ad Soyad zorunludur!'); return; }
+  if (!email)        { showAlert('kayit-err','err','E-posta zorunludur!'); return; }
+  if (sifre.length < 6) { showAlert('kayit-err','err','Şifre en az 6 karakter olmalı!'); return; }
+  if (sifre !== sifre2)  { showAlert('kayit-err','err','Şifreler eşleşmiyor!'); return; }
+  if (!iad)          { showAlert('kayit-err','err','İşletme adı zorunludur!'); return; }
+
+  btn.innerHTML = '<span class="spin"></span>Oluşturuluyor...';
+  btn.disabled = true;
+
+  try {
+    var res = await fetch('/api/kayit', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        ad: ad, telefon: tel, email: email, sifre: sifre,
+        isletme_ad: iad, isletme_tur: secilenTur,
+        isletme_tel: itel, isletme_adres: adres
+      })
+    });
+    var data = await res.json();
+    if (data.success) {
+      showAlert('kayit-suc', 'suc', data.message + ' Giriş yapabilirsiniz.');
+      setTimeout(function(){ tab('giris'); }, 2500);
+    } else {
+      showAlert('kayit-err', 'err', data.message || 'Kayıt başarısız!');
+    }
+  } catch(e) {
+    showAlert('kayit-err', 'err', 'Sunucuya bağlanılamadı! (' + e.message + ')');
+  } finally {
+    btn.innerHTML = '✨ İşletme & Hesap Oluştur';
+    btn.disabled = false;
+  }
+}
+</script>
+</body>
+</html>
