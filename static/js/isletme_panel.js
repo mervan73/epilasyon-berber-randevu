@@ -40,6 +40,9 @@ var TAB_TITLES = {
 // BAŞLAT
 // ════════════════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', async function() {
+  ensureMapFields();
+  applyResponsiveTableLabels();
+  initResponsiveTableObserver();
   try {
     var r = await api('/api/oturum');
     if (!r.success) { window.location.href='/giris'; return; }
@@ -99,6 +102,70 @@ document.addEventListener('DOMContentLoaded', async function() {
   }
 });
 
+function applyResponsiveTableLabels() {
+  document.querySelectorAll('.tbl-wrap table').forEach(function(table) {
+    var headers = Array.from(table.querySelectorAll('thead th')).map(function(th) {
+      return (th.textContent || '').trim();
+    });
+    table.querySelectorAll('tbody tr').forEach(function(tr) {
+      var cells = Array.from(tr.children).filter(function(node) {
+        return node.tagName === 'TD';
+      });
+      if (!cells.length) return;
+      if (cells.length === 1 && cells[0].classList.contains('tbl-empty')) return;
+      cells.forEach(function(td, index) {
+        td.setAttribute('data-label', headers[index] || '');
+      });
+    });
+  });
+}
+
+function initResponsiveTableObserver() {
+  if (window.__ipResponsiveTableObserver) return;
+  var targets = Array.from(document.querySelectorAll('.tbl-wrap tbody'));
+  if (!targets.length || typeof MutationObserver === 'undefined') return;
+
+  var observer = new MutationObserver(function() {
+    applyResponsiveTableLabels();
+  });
+
+  targets.forEach(function(target) {
+    observer.observe(target, { childList: true, subtree: true });
+  });
+
+  window.__ipResponsiveTableObserver = observer;
+}
+
+function ensureMapFields() {
+  var adresInput = document.getElementById('ibAdres');
+  if (!adresInput || document.getElementById('ibLat')) return;
+  var holder = adresInput.closest('.fg');
+  if (!holder || !holder.parentNode) return;
+
+  var wrap = document.createElement('div');
+  wrap.innerHTML = [
+    '<div class="form-row" style="gap:13px;margin-bottom:13px">',
+    '  <div class="fg">',
+    '    <label><span data-iplang="latitude">Latitude</span></label>',
+    '    <input id="ibLat" placeholder="41.0082" oninput="onizlemeGuncelle()">',
+    '  </div>',
+    '  <div class="fg">',
+    '    <label><span data-iplang="longitude">Longitude</span></label>',
+    '    <input id="ibLng" placeholder="28.9784" oninput="onizlemeGuncelle()">',
+    '  </div>',
+    '</div>',
+    '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px">',
+    '  <button class="btn btn-ghost" type="button" onclick="isletmeKonumuAl()">',
+    '    <i class="fas fa-location-crosshairs"></i> <span data-iplang="konumuAl">Konumu Al</span>',
+    '  </button>',
+    '  <button class="btn btn-ghost" type="button" onclick="isletmeHaritadaAc()">',
+    '    <i class="fas fa-map-location-dot"></i> <span data-iplang="haritadaKontrol">Haritada Kontrol Et</span>',
+    '  </button>',
+    '</div>'
+  ].join('');
+  holder.insertAdjacentElement('afterend', wrap);
+}
+
 // ════════════════════════════════════════════════════════
 // TAB
 // ════════════════════════════════════════════════════════
@@ -108,6 +175,7 @@ function goTab(t) {
   document.getElementById('tab-'+t).classList.add('active');
   var nav = document.querySelector('[data-tab="'+t+'"]');
   if (nav) nav.classList.add('active');
+  if (window.innerWidth < 992 && typeof closeSidebar === 'function') closeSidebar();
   var _ld = IP_LANGS[IP_LANG_CURRENT]||IP_LANGS['tr'];
   document.getElementById('topTitle').textContent = _ld[t] || TAB_TITLES[t] || t;
   if (t==='randevular') loadRandevular();
@@ -211,7 +279,7 @@ async function loadDashRandevular() {
       '<td><b>'+r.musteri_adi+'</b></td>'+
       '<td><small>'+r.musteri_telefon+'</small></td>'+
       '<td>'+(r.hizmet_adi||'–')+'</td>'+
-      '<td>'+(r.calisan_adi||'–')+'</td>'+
+      '<td class="randevu-staff-cell">'+(r.calisan_adi||'–')+'</td>'+
       '<td style="display:flex;gap:5px;flex-wrap:wrap">'+
         '<button class="btn btn-success btn-sm" onclick="hizliDurum('+r.id+',\'onaylandi\')">✅ Onayla</button>'+
         '<button class="btn btn-warning btn-sm" onclick="acDetay('+r.id+')">👁 Detay</button>'+
@@ -261,7 +329,7 @@ async function loadRandevular() {
           '<option value="iptal"      '+(r.durum==='iptal'     ?'selected':'')+'>❌ İptal</option>'+
         '</select>'+
       '</td>'+
-      '<td style="display:flex;gap:4px">'+
+      '<td class="randevu-actions-cell" style="display:flex;gap:4px">'+
         '<button class="btn btn-icon btn-ghost" onclick="acDetay('+r.id+')" title="Detay">👁</button>'+
         '<button class="btn btn-icon btn-ghost" onclick="notEkle('+r.id+',\''+esc(r.notlar||'')+'\')" title="Not ekle" style="margin-left:3px">📝</button>'+
       '</td>'+
@@ -486,7 +554,8 @@ async function hizmetEkle() {
   var r = await api('/api/hizmet-ekle','POST',{
     isletme_id:isletme_id, ad:ad, kategori:kat,
     sure:parseInt(sure), ucret:parseFloat(ucret)||0,
-    calisan_id: cid!=='0' ? parseInt(cid) : null
+    calisan_id: cid!=='0' ? parseInt(cid) : null,
+    panel_lang: IP_LANG_CURRENT
   });
   toast(r.success ? (IP_LANGS[IP_LANG_CURRENT]||IP_LANGS['tr']).hizmetEklendi : r.message, r.success?'success':'error');
   if (r.success) { document.getElementById('hAd').value=''; loadHizmetler(); }
@@ -538,7 +607,8 @@ async function saveHizmet(id) {
     kategori:v('eh_kat'),
     sure:parseInt(v('eh_sure')), ucret:parseFloat(v('eh_ucret'))||0,
     aktif:true,
-    calisan_id: cid!=='0' ? parseInt(cid) : null
+    calisan_id: cid!=='0' ? parseInt(cid) : null,
+    panel_lang: IP_LANG_CURRENT
   };
   if (!payload.ad) { toast((IP_LANGS[IP_LANG_CURRENT]||IP_LANGS['tr']).adZorunlu,'error'); return; }
   var r = await api('/api/hizmet-guncelle/'+id,'PUT',payload);
@@ -657,7 +727,11 @@ async function loadIsletmeBilgi() {
   var i = d.isletme;
   document.getElementById('ibAd').value    = i.ad||'';
   document.getElementById('ibTel').value   = i.telefon||'';
+  document.getElementById('ibIl').value    = i.il||'';
+  document.getElementById('ibIlce').value  = i.ilce||'';
   document.getElementById('ibAdres').value = i.adres||'';
+  if (document.getElementById('ibLat')) document.getElementById('ibLat').value = i.latitude||'';
+  if (document.getElementById('ibLng')) document.getElementById('ibLng').value = i.longitude||'';
   document.getElementById('ibAcik').value  = i.aciklama||'';
   document.getElementById('ibAktif').checked = i.aktif !== false;
 
@@ -707,7 +781,11 @@ function setTur(tur) {
 function onizlemeGuncelle() {
   var ad     = (document.getElementById('ibAd')||{}).value    || 'İşletme Adı';
   var tel    = (document.getElementById('ibTel')||{}).value   || '';
+  var il     = (document.getElementById('ibIl')||{}).value    || '';
+  var ilce   = (document.getElementById('ibIlce')||{}).value  || '';
   var adres  = (document.getElementById('ibAdres')||{}).value || '';
+  var lat    = (document.getElementById('ibLat')||{}).value   || '';
+  var lng    = (document.getElementById('ibLng')||{}).value   || '';
   var acik   = (document.getElementById('ibAcik')||{}).value  || '';
   var tur    = (document.getElementById('ibTur')||{}).value   || 'berber';
   var aktif  = (document.getElementById('ibAktif')||{}).checked !== false;
@@ -735,9 +813,15 @@ function onizlemeGuncelle() {
   if (onizAcik)  onizAcik.textContent  = acik;
 
   if (onizAdres) {
-    onizAdres.style.display = adres ? 'block' : 'none';
+    var konumParca = [];
+    if (il) konumParca.push(il);
+    if (ilce) konumParca.push(ilce);
+    var tamAdres = konumParca.join(' / ');
+    if (adres) tamAdres = tamAdres ? (tamAdres + ' - ' + adres) : adres;
+    if (lat && lng) tamAdres = tamAdres ? (tamAdres + ' · ' + lat + ', ' + lng) : (lat + ', ' + lng);
+    onizAdres.style.display = tamAdres ? 'block' : 'none';
     var sp = onizAdres.querySelector('span');
-    if (sp) sp.textContent = adres;
+    if (sp) sp.textContent = tamAdres;
   }
   if (onizTel) {
     onizTel.style.display = tel ? 'block' : 'none';
@@ -758,16 +842,54 @@ function onizlemeGuncelle() {
   if (oniz) oniz.style.opacity = aktif ? '1' : '0.5';
 }
 
+function isletmeHaritaUrl() {
+  var lat = v('ibLat');
+  var lng = v('ibLng');
+  if (lat && lng) return 'https://www.google.com/maps?q=' + encodeURIComponent(lat + ',' + lng);
+  var adres = [v('ibAdres'), v('ibIlce'), v('ibIl')].filter(Boolean).join(', ');
+  return adres ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(adres) : '';
+}
+
+function isletmeHaritadaAc() {
+  var url = isletmeHaritaUrl();
+  if (!url) {
+    toast((IP_LANGS[IP_LANG_CURRENT]||IP_LANGS['tr']).konumYok, 'error');
+    return;
+  }
+  window.open(url, '_blank', 'noopener');
+}
+
+function isletmeKonumuAl() {
+  if (!navigator.geolocation) {
+    toast((IP_LANGS[IP_LANG_CURRENT]||IP_LANGS['tr']).konumDesteklenmiyor, 'error');
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(function(pos){
+    if (document.getElementById('ibLat')) document.getElementById('ibLat').value = pos.coords.latitude.toFixed(6);
+    if (document.getElementById('ibLng')) document.getElementById('ibLng').value = pos.coords.longitude.toFixed(6);
+    onizlemeGuncelle();
+    toast((IP_LANGS[IP_LANG_CURRENT]||IP_LANGS['tr']).konumAlindi, 'success');
+  }, function(err){
+    toast(((IP_LANGS[IP_LANG_CURRENT]||IP_LANGS['tr']).konumAlinamadi || 'Konum alınamadı') + ': ' + err.message, 'error');
+  }, {enableHighAccuracy:true, timeout:10000, maximumAge:0});
+}
+
 async function isletmeGuncelle() {
   var payload = {
     ad       : v('ibAd'),
     tur      : v('ibTur') || 'berber',
     telefon  : v('ibTel'),
+    il       : v('ibIl'),
+    ilce     : v('ibIlce'),
     adres    : v('ibAdres'),
+    latitude : v('ibLat') || null,
+    longitude: v('ibLng') || null,
     aciklama : (document.getElementById('ibAcik')||{}).value||'',
     aktif    : (document.getElementById('ibAktif')||{}).checked !== false
   };
   if (!payload.ad) { toast((IP_LANGS[IP_LANG_CURRENT]||IP_LANGS['tr']).isletmeAdiZorunlu,'error'); return; }
+  if (!payload.il) { toast((IP_LANGS[IP_LANG_CURRENT]||IP_LANGS['tr']).ilZorunlu,'error'); return; }
+  if (!payload.ilce) { toast((IP_LANGS[IP_LANG_CURRENT]||IP_LANGS['tr']).ilceZorunlu,'error'); return; }
 
   var btn = document.getElementById('ibKaydetBtn');
   if (btn) { btn.disabled=true; btn.innerHTML='⏳ '+(IP_LANGS[IP_LANG_CURRENT]||IP_LANGS['tr']).kaydediliyor; }
@@ -819,6 +941,15 @@ function esc(s) {
   return (s||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;');
 }
 
+function escapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function dr(ico, lbl, val) {
   return '<div class="drow"><span style="min-width:22px;text-align:center">'+ico+'</span><span class="drow-lbl">'+lbl+'</span><span class="drow-val">'+val+'</span></div>';
 }
@@ -826,6 +957,7 @@ function dr(ico, lbl, val) {
 function showModal(html) {
   document.getElementById('modalBody').innerHTML = html;
   document.getElementById('modal').classList.add('open');
+  autoTranslateIpDom(document.getElementById('modalBody'));
 }
 
 function closeModal() {
@@ -1065,6 +1197,7 @@ function applyIpLang(lang) {
   if (typeof loadHizmetler     === 'function') loadHizmetler();
   if (typeof loadSaatler       === 'function') loadSaatler();
   if (typeof loadDashRandevular === 'function') loadDashRandevular();
+  autoTranslateIpDom(document.body);
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1075,13 +1208,24 @@ var _sbCollapsed = false;
 function toggleSidebar() {
   var sb   = document.querySelector('.sidebar');
   var main = document.querySelector('.main');
+  var overlay = document.getElementById('sidebarOverlay');
   if (window.innerWidth >= 992) {
     _sbCollapsed = !_sbCollapsed;
     sb.classList.toggle('collapsed', _sbCollapsed);
     main.classList.toggle('expanded', _sbCollapsed);
   } else {
     sb.classList.toggle('open');
+    if (overlay) overlay.classList.toggle('open', sb.classList.contains('open'));
+    document.body.classList.toggle('sidebar-mobile-open', sb.classList.contains('open'));
   }
+}
+
+function closeSidebar() {
+  var sb = document.querySelector('.sidebar');
+  var overlay = document.getElementById('sidebarOverlay');
+  if (sb) sb.classList.remove('open');
+  if (overlay) overlay.classList.remove('open');
+  document.body.classList.remove('sidebar-mobile-open');
 }
 
 // Mobilde dışarı tıklayınca kapat
@@ -1090,9 +1234,22 @@ document.addEventListener('click', function(e) {
     var sb = document.querySelector('.sidebar');
     var btn = document.getElementById('sidebarToggleBtn');
     if (sb && sb.classList.contains('open') && !sb.contains(e.target) && btn && !btn.contains(e.target)) {
-      sb.classList.remove('open');
+      closeSidebar();
     }
   }
+});
+
+window.addEventListener('resize', function() {
+  if (window.innerWidth >= 992) {
+    closeSidebar();
+  }
+  clearTimeout(window.__dashResizeTimer);
+  window.__dashResizeTimer = setTimeout(function() {
+    var dashTab = document.getElementById('tab-dashboard');
+    if (dashTab && dashTab.classList.contains('active')) {
+      loadDashRandevular();
+    }
+  }, 120);
 });
 
 // ═══════════════════════════════════════════════════════
@@ -1221,3 +1378,763 @@ async function ceviriTest() {
   var a = t === 'system' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : t;
   document.documentElement.setAttribute('data-bs-theme', a);
 })();
+
+// Appointment language overrides
+var IP_TRANSLATION_CONFIG = null;
+var IP_TRANSLATION_CACHE = {};
+
+async function ipLoadTranslationConfig() {
+  if (IP_TRANSLATION_CONFIG) return IP_TRANSLATION_CONFIG;
+  try {
+    var r = await fetch('/api/translation-config', { cache: 'no-store' });
+    IP_TRANSLATION_CONFIG = await r.json();
+  } catch (e) {
+    IP_TRANSLATION_CONFIG = { success: false, enabled: false, provider: 'none' };
+  }
+  return IP_TRANSLATION_CONFIG;
+}
+
+async function ipTranslateTexts(texts, sourceLang, targetLang) {
+  var items = (texts || []).map(function(t){ return (t || '').trim(); }).filter(Boolean);
+  if (!items.length || sourceLang === targetLang) return {};
+
+  var cfg = await ipLoadTranslationConfig();
+  if (!cfg || !cfg.enabled) return {};
+
+  var unique = Array.from(new Set(items));
+  var missing = unique.filter(function(text){
+    return !IP_TRANSLATION_CACHE[sourceLang + '|' + targetLang + '|' + text];
+  });
+
+  if (missing.length) {
+    try {
+      var resp = await fetch('/api/translate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          texts: missing,
+          source_lang: sourceLang,
+          target_lang: targetLang,
+          format: 'text'
+        })
+      });
+      var data = await resp.json();
+      if (data && data.success && Array.isArray(data.translations)) {
+        missing.forEach(function(text, idx){
+          IP_TRANSLATION_CACHE[sourceLang + '|' + targetLang + '|' + text] = data.translations[idx] || text;
+        });
+      }
+    } catch (e) {}
+  }
+
+  var out = {};
+  unique.forEach(function(text){
+    out[text] = IP_TRANSLATION_CACHE[sourceLang + '|' + targetLang + '|' + text] || text;
+  });
+  return out;
+}
+
+async function enrichAppointmentTranslations(rows) {
+  rows = rows || [];
+  if (IP_LANG_CURRENT !== 'en' || !rows.length) return rows;
+
+  var serviceTexts = rows
+    .filter(function(r){ return r && !r.hizmet_adi_en && r.hizmet_adi; })
+    .map(function(r){ return r.hizmet_adi; });
+
+  var noteTexts = rows
+    .filter(function(r){ return r && !r.notlar_en && r.notlar; })
+    .map(function(r){ return r.notlar; });
+
+  var serviceMap = await ipTranslateTexts(serviceTexts, 'tr', 'en');
+  var noteMap = await ipTranslateTexts(noteTexts, 'tr', 'en');
+
+  rows.forEach(function(r){
+    if (r && !r.hizmet_adi_en && r.hizmet_adi && serviceMap[r.hizmet_adi]) {
+      r.hizmet_adi_en = serviceMap[r.hizmet_adi];
+    }
+    if (r && !r.notlar_en && r.notlar && noteMap[r.notlar]) {
+      r.notlar_en = noteMap[r.notlar];
+    }
+  });
+  return rows;
+}
+
+function isIpAutoTranslatableText(text) {
+  var value = (text || '').trim();
+  if (!value || value.length < 2) return false;
+  if (/^[\d\s\-–—:/.+₺$€£#()%]+$/.test(value)) return false;
+  return true;
+}
+
+function collectIpAutoTranslateTargets(root) {
+  var scope = root || document.body;
+  var textTargets = [];
+  var placeholderTargets = [];
+  var optionTargets = [];
+
+  scope.querySelectorAll('*').forEach(function(el) {
+    var tag = el.tagName;
+    if (!tag) return;
+    if (el.hasAttribute('data-iplang') || el.hasAttribute('data-no-auto-translate')) return;
+    if (el.closest('[data-iplang]')) return;
+    if (['SCRIPT','STYLE','NOSCRIPT','I','SVG','PATH'].includes(tag)) return;
+
+    if ((tag === 'INPUT' || tag === 'TEXTAREA') && el.placeholder) {
+      if (!el.dataset.trOriginalPlaceholder) el.dataset.trOriginalPlaceholder = el.placeholder;
+      if (isIpAutoTranslatableText(el.dataset.trOriginalPlaceholder)) {
+        placeholderTargets.push({ el: el, text: el.dataset.trOriginalPlaceholder });
+      }
+    }
+
+    if (tag === 'OPTION') {
+      if (!el.dataset.trOriginalText) el.dataset.trOriginalText = (el.textContent || '').trim();
+      if (isIpAutoTranslatableText(el.dataset.trOriginalText)) {
+        optionTargets.push({ el: el, text: el.dataset.trOriginalText });
+      }
+      return;
+    }
+
+    var hasElementChildren = Array.from(el.childNodes).some(function(n){ return n.nodeType === 1; });
+    if (hasElementChildren) return;
+
+    var text = (el.textContent || '').trim();
+    if (!isIpAutoTranslatableText(text)) return;
+    if (!el.dataset.trOriginalText) el.dataset.trOriginalText = text;
+    textTargets.push({ el: el, text: el.dataset.trOriginalText });
+  });
+
+  return { textTargets: textTargets, placeholderTargets: placeholderTargets, optionTargets: optionTargets };
+}
+
+async function autoTranslateIpDom(root) {
+  var scope = root || document.body;
+  var targets = collectIpAutoTranslateTargets(scope);
+
+  if (IP_LANG_CURRENT === 'tr') {
+    targets.textTargets.forEach(function(item){ item.el.textContent = item.el.dataset.trOriginalText || item.text; });
+    targets.placeholderTargets.forEach(function(item){ item.el.placeholder = item.el.dataset.trOriginalPlaceholder || item.text; });
+    targets.optionTargets.forEach(function(item){ item.el.textContent = item.el.dataset.trOriginalText || item.text; });
+    return;
+  }
+
+  if (IP_LANG_CURRENT !== 'en') return;
+
+  var textMap = await ipTranslateTexts(targets.textTargets.map(function(item){ return item.text; }), 'tr', 'en');
+  var placeholderMap = await ipTranslateTexts(targets.placeholderTargets.map(function(item){ return item.text; }), 'tr', 'en');
+  var optionMap = await ipTranslateTexts(targets.optionTargets.map(function(item){ return item.text; }), 'tr', 'en');
+
+  targets.textTargets.forEach(function(item){
+    item.el.textContent = textMap[item.text] || item.text;
+  });
+  targets.placeholderTargets.forEach(function(item){
+    item.el.placeholder = placeholderMap[item.text] || item.text;
+  });
+  targets.optionTargets.forEach(function(item){
+    item.el.textContent = optionMap[item.text] || item.text;
+  });
+}
+
+function getPanelAppointmentServiceName(r, ld) {
+  if (!r) return '–';
+  if (IP_LANG_CURRENT !== 'en') return r.hizmet_adi || '–';
+  if (r.hizmet_adi_en) return r.hizmet_adi_en;
+
+  var serviceMap = {
+    'saç + sakal': 'Hair + Beard',
+    'sac + sakal': 'Hair + Beard',
+    'saç kesimi': 'Haircut',
+    'cocuk saç kesimi': 'Kids Haircut',
+    'çocuk saç kesimi': 'Kids Haircut',
+    'bıyık şekillendirme': 'Mustache Styling',
+    'biyik şekillendirme': 'Mustache Styling',
+    'biyik sekillendirme': 'Mustache Styling',
+    'koltuk altı epilasyon': 'Underarm Epilation',
+    'bacak epilasyon': 'Leg Epilation'
+  };
+
+  var raw = (r.hizmet_adi || '').trim();
+  var key = raw.toLocaleLowerCase('tr-TR');
+  return serviceMap[key] || raw || '–';
+}
+
+function getPanelAppointmentNote(r, ld) {
+  if (!r) return '—';
+  if (IP_LANG_CURRENT !== 'en') return r.notlar || '—';
+  if (r.notlar_en) return r.notlar_en;
+
+  var noteMap = {
+    'randevu onaylandı': 'appointment approved',
+    'randevu onaylandi': 'appointment approved',
+    'randevu tamamlandı': 'appointment completed',
+    'randevu tamamlandi': 'appointment completed',
+    'randevu iptal edildi': 'appointment cancelled',
+    'beklemede': 'pending'
+  };
+
+  var raw = (r.notlar || '').trim();
+  var key = raw.toLocaleLowerCase('tr-TR');
+  return noteMap[key] || raw || '—';
+}
+
+async function loadRandevular() {
+  var tb    = document.getElementById('randevuBody');
+  var durum = (document.getElementById('fDurum')||{}).value || '';
+  var tarih = (document.getElementById('fTarih')||{}).value || '';
+  var arama = (document.getElementById('fArama')||{}).value || '';
+  var ld = IP_LANGS[IP_LANG_CURRENT] || IP_LANGS['tr'];
+  tb.innerHTML = '<tr><td colspan="9" class="tbl-empty"><div class="sp"></div></td></tr>';
+  var url = '/api/randevular?';
+  if (durum) url += 'durum='+durum+'&';
+  if (tarih) url += 'tarih='+tarih+'&';
+  if (arama) url += 'arama='+encodeURIComponent(arama)+'&';
+  var d = await api(url);
+  if (!d || !d.success) {
+    tb.innerHTML = '<tr><td colspan="9" class="tbl-empty">'+ld.veriAlinamadi+'</td></tr>';
+    return;
+  }
+  await enrichAppointmentTranslations(d.randevular);
+  if (!d.randevular.length) {
+    tb.innerHTML = '<tr><td colspan="9" class="tbl-empty">'+ld.randevuBulunamadi+'</td></tr>';
+    return;
+  }
+  tb.innerHTML = d.randevular.map(function(r){
+    return '<tr>'+
+      '<td class="randevu-date-cell"><b>'+r.tarih+'</b></td>'+
+      '<td class="randevu-time-cell">'+r.saat+'</td>'+
+      '<td class="randevu-customer-cell"><b>'+r.musteri_adi+'</b></td>'+
+      '<td class="randevu-phone-cell"><small>'+r.musteri_telefon+'</small></td>'+
+      '<td class="randevu-service-cell">'+getPanelAppointmentServiceName(r, ld)+'</td>'+
+      '<td>'+(r.calisan_adi||'–')+'</td>'+
+      '<td class="randevu-price-cell">'+(r.ucret ? parseFloat(r.ucret).toLocaleString('tr-TR')+' ₺' : '–')+'</td>'+
+      '<td class="randevu-status-cell">'+
+        '<select class="st-sel" onchange="durumGuncelle('+r.id+',this.value)">'+
+          '<option value="bekliyor" '+(r.durum==='bekliyor'?'selected':'')+'>'+(ld.durumBekliyor||'⏳ Bekliyor')+'</option>'+
+          '<option value="onaylandi" '+(r.durum==='onaylandi'?'selected':'')+'>'+(ld.durumOnaylandi||'✅ Onaylandı')+'</option>'+
+          '<option value="tamamlandi" '+(r.durum==='tamamlandi'?'selected':'')+'>'+(ld.durumTamamlandi||'🎉 Tamamlandı')+'</option>'+
+          '<option value="iptal" '+(r.durum==='iptal'?'selected':'')+'>'+(ld.durumIptal||'❌ İptal')+'</option>'+
+        '</select>'+
+      '</td>'+
+      '<td style="display:flex;gap:4px">'+
+        '<button class="btn btn-icon btn-ghost" onclick="acDetay('+r.id+')" title="'+(ld.detayBtn||'Detay')+'">👁</button>'+
+        '<button class="btn btn-icon btn-ghost" onclick="notEkle('+r.id+',\''+esc(IP_LANG_CURRENT==='en' ? (r.notlar_en||r.notlar||'') : (r.notlar||''))+'\')" title="'+(ld.notEkleBtn||'Not ekle')+'" style="margin-left:3px">📝</button>'+
+      '</td>'+
+    '</tr>';
+  }).join('');
+}
+
+async function acDetay(id) {
+  var d = await api('/api/randevular');
+  if (!d || !d.success) return;
+  await enrichAppointmentTranslations(d.randevular);
+  var r = d.randevular.find(function(x){ return x.id === id; });
+  if (!r) return;
+  var ld = IP_LANGS[IP_LANG_CURRENT] || IP_LANGS['tr'];
+  var durumBadge = {bekliyor:'b-bekliyor',onaylandi:'b-onaylandi',tamamlandi:'b-tamamlandi',iptal:'b-iptal'};
+  var durumText = {
+    bekliyor: ld.durumBekliyor || '⏳ Bekliyor',
+    onaylandi: ld.durumOnaylandi || '✅ Onaylandı',
+    tamamlandi: ld.durumTamamlandi || '🎉 Tamamlandı',
+    iptal: ld.durumIptal || '❌ İptal'
+  };
+  showModal(
+    '<div class="m-icon m-blue">📅</div>'+
+    '<h2>'+(ld.randevuDetayi||'Appointment Details')+'</h2><p class="msub">#'+r.id+'</p>'+
+    dr('👤', ld.randevuMusteri||'Customer', r.musteri_adi)+
+    dr('📞', ld.randevuTelefon||'Phone', r.musteri_telefon)+
+    dr('✂️', ld.randevuHizmet||'Service', getPanelAppointmentServiceName(r, ld))+
+    dr('💰', ld.randevuUcret||'Price', r.ucret ? parseFloat(r.ucret).toLocaleString('tr-TR')+' ₺' : '–')+
+    dr('👤', ld.randevuCalisan||'Staff', r.calisan_adi||'–')+
+    dr('📅', ld.randevuTarih||'Date', r.tarih+' — '+r.saat)+
+    dr('🔵', ld.randevuDurum||'Status', '<span class="badge '+(durumBadge[r.durum]||'b-bekliyor')+'">'+(durumText[r.durum]||durumText.bekliyor)+'</span>')+
+    dr('📝', ld.randevuNot||'Note', getPanelAppointmentNote(r, ld))+
+    '<div class="mfooter">'+
+      '<button class="btn btn-primary" onclick="notEkle('+r.id+',\''+esc(IP_LANG_CURRENT==='en' ? (r.notlar_en||r.notlar||'') : (r.notlar||''))+'\')">'+(ld.notEkleDuzenle||'📝 Add/Edit Note')+'</button>'+
+      '<button class="btn btn-ghost" onclick="closeModal()">'+(ld.kapatBtn||'Close')+'</button>'+
+    '</div>'
+  );
+}
+
+function notEkle(id, mevcutNot) {
+  var ld = IP_LANGS[IP_LANG_CURRENT] || IP_LANGS['tr'];
+  showModal(
+    '<div class="m-icon m-blue">📝</div>'+
+    '<h2>'+(ld.randevuNotu||'Appointment Note')+'</h2><p class="msub">'+(ld.randevuNo||'Appointment')+' #'+id+'</p>'+
+    '<div class="fg">'+
+      '<label>'+(ld.randevuNot||'Note')+'</label>'+
+      '<textarea id="notInput" rows="4" style="resize:vertical;padding:8px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-family:inherit;font-size:13px;width:100%">'+(mevcutNot||'')+'</textarea>'+
+    '</div>'+
+    '<div class="mfooter">'+
+      '<button class="btn btn-primary" onclick="saveNot('+id+')">'+(ld.kaydetBtn||'💾 Save')+'</button>'+
+      '<button class="btn btn-ghost" onclick="closeModal()">'+(ld.iptalBtn||'Cancel')+'</button>'+
+    '</div>'
+  );
+}
+
+async function saveNot(id) {
+  var notlar = (document.getElementById('notInput')||{}).value || '';
+  var r = await api('/api/randevu-not/'+id, 'POST', {notlar:notlar});
+  var ld = IP_LANGS[IP_LANG_CURRENT] || IP_LANGS['tr'];
+  toast(r.success ? (ld.notKaydedildi || '✅ Note saved!') : r.message, r.success ? 'success' : 'error');
+  if (r.success) {
+    closeModal();
+    loadRandevular();
+  }
+}
+
+async function loadDashRandevular() {
+  var tb = document.getElementById('dashBody');
+  var mobileList = document.getElementById('dashMobileList');
+  var lang = IP_LANG_CURRENT;
+  var ld = IP_LANGS[lang] || IP_LANGS['tr'];
+  var d = await api('/api/randevular?durum=bekliyor');
+  if (!d || !d.success) {
+    tb.innerHTML = '<tr><td colspan="6" class="tbl-empty">'+ld.veriAlinamadi+'</td></tr>';
+    if (mobileList) mobileList.innerHTML = '<div class="tbl-empty">'+ld.veriAlinamadi+'</div>';
+    return;
+  }
+
+  await enrichAppointmentTranslations(d.randevular || []);
+  var allList = d.randevular || [];
+  var isMobileDashboard = window.innerWidth <= 575;
+  var maxVisible = isMobileDashboard ? 2 : 8;
+  var list = allList.slice(0, maxVisible);
+
+  if (!list.length) {
+    tb.innerHTML = '<tr><td colspan="6" class="tbl-empty">'+ld.bekleyenRandevuYok+'</td></tr>';
+    if (mobileList) mobileList.innerHTML = '<div class="tbl-empty">'+ld.bekleyenRandevuYok+'</div>';
+    return;
+  }
+
+  var rowsHtml = list.map(function(r){
+    return '<tr>'+
+      '<td><b>'+r.tarih+'</b> '+r.saat+'</td>'+
+      '<td><b>'+r.musteri_adi+'</b></td>'+
+      '<td><small>'+r.musteri_telefon+'</small></td>'+
+      '<td>'+getPanelAppointmentServiceName(r, ld)+'</td>'+
+      '<td>'+(r.calisan_adi || '–')+'</td>'+
+      '<td style="display:flex;gap:5px;flex-wrap:wrap">'+
+        '<button class="btn btn-success btn-sm" onclick="hizliDurum('+r.id+',\'onaylandi\')">✅ '+(lang === 'en' ? 'Approve' : 'Onayla')+'</button>'+
+        '<button class="btn btn-warning btn-sm" onclick="acDetay('+r.id+')">👁 '+(ld.detayBtn || 'Detay')+'</button>'+
+        '<button class="btn btn-danger btn-sm" onclick="hizliDurum('+r.id+',\'iptal\')">❌ '+(ld.iptalBtn || 'İptal')+'</button>'+
+      '</td>'+
+    '</tr>';
+  }).join('');
+
+  if (allList.length > maxVisible) {
+    var remaining = allList.length - maxVisible;
+    var moreLabel = lang === 'en'
+      ? remaining + ' more pending appointments. Tap "View All".'
+      : '+' + remaining + ' bekleyen randevu daha var. "Tümünü Gör" ile açabilirsiniz.';
+    rowsHtml += '<tr class="dash-more-row"><td colspan="6" class="tbl-empty dash-more-cell">'+moreLabel+'</td></tr>';
+  }
+
+  tb.innerHTML = rowsHtml;
+  if (mobileList) {
+    mobileList.innerHTML = list.map(function(r){
+      return '<div class="dash-mobile-item">'+
+        '<div class="dash-mobile-top">'+
+          '<div class="dash-mobile-datetime"><strong>'+r.tarih+'</strong><span>'+r.saat+'</span></div>'+
+          '<button class="btn btn-ghost btn-sm" onclick="acDetay('+r.id+')">'+(ld.detayBtn || 'Detay')+'</button>'+
+        '</div>'+
+        '<div class="dash-mobile-customer">'+r.musteri_adi+'</div>'+
+        '<div class="dash-mobile-meta"><span>'+getPanelAppointmentServiceName(r, ld)+'</span><span>'+(r.calisan_adi || 'â€“')+'</span></div>'+
+        '<div class="dash-mobile-actions">'+
+          '<button class="btn btn-success btn-sm" onclick="hizliDurum('+r.id+',\'onaylandi\')">âœ… '+(lang === 'en' ? 'Approve' : 'Onayla')+'</button>'+
+          '<button class="btn btn-danger btn-sm" onclick="hizliDurum('+r.id+',\'iptal\')">âŒ '+(ld.iptalBtn || 'Ä°ptal')+'</button>'+
+        '</div>'+
+      '</div>';
+    }).join('');
+    if (allList.length > maxVisible) {
+      mobileList.innerHTML += '<div class="dash-mobile-more">'+
+        (lang === 'en' ? (allList.length - maxVisible) + ' more pending appointments' : '+' + (allList.length - maxVisible) + ' bekleyen randevu daha')+
+      '</div>';
+    }
+  }
+}
+
+function isNarrowMobilePanel() {
+  return false;
+}
+
+async function loadDashRandevular() {
+  var tb = document.getElementById('dashBody');
+  var mobileList = document.getElementById('dashMobileList');
+  if (!tb) return;
+
+  var lang = IP_LANG_CURRENT;
+  var ld = IP_LANGS[lang] || IP_LANGS['tr'];
+  var d = await api('/api/randevular?durum=bekliyor');
+
+  if (!d || !d.success) {
+    tb.innerHTML = '<tr><td colspan="6" class="tbl-empty">'+ld.veriAlinamadi+'</td></tr>';
+    if (mobileList) mobileList.innerHTML = '<div class="tbl-empty">'+ld.veriAlinamadi+'</div>';
+    return;
+  }
+
+  try {
+    await enrichAppointmentTranslations(d.randevular || []);
+  } catch (e) {}
+
+  var allList = Array.isArray(d.randevular) ? d.randevular : [];
+  var maxVisible = window.innerWidth <= 575 ? 2 : 8;
+  var list = allList.slice(0, maxVisible);
+
+  if (!list.length) {
+    tb.innerHTML = '<tr><td colspan="6" class="tbl-empty">'+ld.bekleyenRandevuYok+'</td></tr>';
+    if (mobileList) mobileList.innerHTML = '<div class="tbl-empty">'+ld.bekleyenRandevuYok+'</div>';
+    return;
+  }
+
+  var rowsHtml = list.map(function(r) {
+    var tarih = escapeHtml(r.tarih || '-');
+    var saat = escapeHtml(r.saat || '-');
+    var musteriAdi = escapeHtml(r.musteri_adi || '-');
+    var telefon = escapeHtml(r.musteri_telefon || '-');
+    var hizmetAdi = escapeHtml(getPanelAppointmentServiceName(r, ld) || '-');
+    var calisanAdi = escapeHtml(r.calisan_adi || '-');
+
+    return '<tr>'+
+      '<td><b>'+tarih+'</b> '+saat+'</td>'+
+      '<td><b>'+musteriAdi+'</b></td>'+
+      '<td><small>'+telefon+'</small></td>'+
+      '<td>'+hizmetAdi+'</td>'+
+      '<td>'+calisanAdi+'</td>'+
+      '<td style="display:flex;gap:5px;flex-wrap:wrap">'+
+        '<button class="btn btn-success btn-sm" onclick="hizliDurum('+r.id+',\'onaylandi\')">'+(lang === 'en' ? 'Approve' : 'Onayla')+'</button>'+
+        '<button class="btn btn-warning btn-sm" onclick="acDetay('+r.id+')">'+(ld.detayBtn || 'Detay')+'</button>'+
+        '<button class="btn btn-danger btn-sm" onclick="hizliDurum('+r.id+',\'iptal\')">'+(ld.iptalBtn || 'Iptal')+'</button>'+
+      '</td>'+
+    '</tr>';
+  }).join('');
+
+  if (allList.length > maxVisible) {
+    var remaining = allList.length - maxVisible;
+    var moreLabel = lang === 'en'
+      ? remaining + ' more pending appointments. Tap "View All".'
+      : '+' + remaining + ' bekleyen randevu daha var. "Tumunu Gor" ile acabilirsiniz.';
+    rowsHtml += '<tr class="dash-more-row"><td colspan="6" class="tbl-empty dash-more-cell">'+moreLabel+'</td></tr>';
+  }
+
+  tb.innerHTML = rowsHtml;
+  if (!mobileList) return;
+
+  mobileList.innerHTML = list.map(function(r) {
+    var tarih = escapeHtml(r.tarih || '-');
+    var saat = escapeHtml(r.saat || '-');
+    var musteriAdi = escapeHtml(r.musteri_adi || '-');
+    var hizmetAdi = escapeHtml(getPanelAppointmentServiceName(r, ld) || '-');
+    var calisanAdi = escapeHtml(r.calisan_adi || '-');
+
+    return '<div class="dash-mobile-item">'+
+      '<div class="dash-mobile-top">'+
+        '<div class="dash-mobile-datetime"><strong>'+tarih+'</strong><span>'+saat+'</span></div>'+
+        '<button class="btn btn-ghost btn-sm" onclick="acDetay('+r.id+')">'+(ld.detayBtn || 'Detay')+'</button>'+
+      '</div>'+
+      '<div class="dash-mobile-customer">'+musteriAdi+'</div>'+
+      '<div class="dash-mobile-meta"><span>'+hizmetAdi+'</span><span>'+calisanAdi+'</span></div>'+
+      '<div class="dash-mobile-actions">'+
+        '<button class="btn btn-success btn-sm" onclick="hizliDurum('+r.id+',\'onaylandi\')">'+(lang === 'en' ? 'Approve' : 'Onayla')+'</button>'+
+        '<button class="btn btn-danger btn-sm" onclick="hizliDurum('+r.id+',\'iptal\')">'+(ld.iptalBtn || 'Iptal')+'</button>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+
+  if (allList.length > maxVisible) {
+    mobileList.innerHTML += '<div class="dash-mobile-more">'+
+      (lang === 'en' ? (allList.length - maxVisible) + ' more pending appointments' : '+' + (allList.length - maxVisible) + ' bekleyen randevu daha')+
+    '</div>';
+  }
+}
+
+async function loadRandevular() {
+  var tb = document.getElementById('randevuBody');
+  var mobileList = document.getElementById('randevuMobileList');
+  var durum = (document.getElementById('fDurum') || {}).value || '';
+  var tarih = (document.getElementById('fTarih') || {}).value || '';
+  var arama = (document.getElementById('fArama') || {}).value || '';
+  var ld = IP_LANGS[IP_LANG_CURRENT] || IP_LANGS['tr'];
+
+  if (tb) {
+    tb.innerHTML = '<tr><td colspan="9" class="tbl-empty"><div class="sp"></div></td></tr>';
+  }
+  if (mobileList) {
+    mobileList.innerHTML = '<div class="randevu-mobile-empty"><div class="sp"></div></div>';
+  }
+
+  var url = '/api/randevular?';
+  if (durum) url += 'durum=' + durum + '&';
+  if (tarih) url += 'tarih=' + tarih + '&';
+  if (arama) url += 'arama=' + encodeURIComponent(arama) + '&';
+
+  var d = await api(url);
+  if (!d || !d.success) {
+    if (tb) tb.innerHTML = '<tr><td colspan="9" class="tbl-empty">' + ld.veriAlinamadi + '</td></tr>';
+    if (mobileList) mobileList.innerHTML = '<div class="randevu-mobile-empty">' + ld.veriAlinamadi + '</div>';
+    return;
+  }
+
+  await enrichAppointmentTranslations(d.randevular);
+  var rows = Array.isArray(d.randevular) ? d.randevular : [];
+
+  if (!rows.length) {
+    if (tb) tb.innerHTML = '<tr><td colspan="9" class="tbl-empty">' + ld.randevuBulunamadi + '</td></tr>';
+    if (mobileList) mobileList.innerHTML = '<div class="randevu-mobile-empty">' + ld.randevuBulunamadi + '</div>';
+    return;
+  }
+
+  if (tb) {
+    tb.innerHTML = rows.map(function(r) {
+      return '<tr>'+
+        '<td class="randevu-date-cell"><b>'+r.tarih+'</b></td>'+
+        '<td class="randevu-time-cell">'+r.saat+'</td>'+
+        '<td class="randevu-customer-cell"><b>'+r.musteri_adi+'</b></td>'+
+        '<td class="randevu-phone-cell"><small>'+r.musteri_telefon+'</small></td>'+
+        '<td class="randevu-service-cell">'+getPanelAppointmentServiceName(r, ld)+'</td>'+
+        '<td class="randevu-staff-cell">'+(r.calisan_adi || '–')+'</td>'+
+        '<td class="randevu-price-cell">'+(r.ucret ? parseFloat(r.ucret).toLocaleString('tr-TR')+' ₺' : '–')+'</td>'+
+        '<td class="randevu-status-cell">'+
+          '<select class="st-sel" onchange="durumGuncelle('+r.id+',this.value)">'+
+            '<option value="bekliyor" '+(r.durum==='bekliyor'?'selected':'')+'>'+(ld.durumBekliyor||'⏳ Bekliyor')+'</option>'+
+            '<option value="onaylandi" '+(r.durum==='onaylandi'?'selected':'')+'>'+(ld.durumOnaylandi||'✅ Onaylandı')+'</option>'+
+            '<option value="tamamlandi" '+(r.durum==='tamamlandi'?'selected':'')+'>'+(ld.durumTamamlandi||'🎉 Tamamlandı')+'</option>'+
+            '<option value="iptal" '+(r.durum==='iptal'?'selected':'')+'>'+(ld.durumIptal||'❌ İptal')+'</option>'+
+          '</select>'+
+        '</td>'+
+        '<td class="randevu-actions-cell" style="display:flex;gap:4px">'+
+          '<button class="btn btn-icon btn-ghost" onclick="acDetay('+r.id+')" title="'+(ld.detayBtn||'Detay')+'">👁</button>'+
+          '<button class="btn btn-icon btn-ghost" onclick="notEkle('+r.id+',\''+esc(IP_LANG_CURRENT==='en' ? (r.notlar_en||r.notlar||'') : (r.notlar||''))+'\')" title="'+(ld.notEkleBtn||'Not ekle')+'" style="margin-left:3px">📝</button>'+
+        '</td>'+
+      '</tr>';
+    }).join('');
+  }
+
+  if (!mobileList) return;
+
+  mobileList.innerHTML = rows.map(function(r) {
+    var tarihText = escapeHtml(r.tarih || '-');
+    var saatText = escapeHtml(r.saat || '-');
+    var musteriText = escapeHtml(r.musteri_adi || '-');
+    var telefonText = escapeHtml(r.musteri_telefon || '-');
+    var hizmetText = escapeHtml(getPanelAppointmentServiceName(r, ld) || '-');
+    var calisanText = escapeHtml(r.calisan_adi || '-');
+    var ucretText = r.ucret ? escapeHtml(parseFloat(r.ucret).toLocaleString('tr-TR') + ' ₺') : '–';
+    var durumClass = r.durum === 'onaylandi'
+      ? 'is-onaylandi'
+      : r.durum === 'tamamlandi'
+      ? 'is-tamamlandi'
+      : r.durum === 'iptal'
+      ? 'is-iptal'
+      : 'is-bekliyor';
+
+    return '<div class="randevu-mobile-item">'+
+      '<div class="randevu-mobile-top">'+
+        '<div class="randevu-mobile-datetime"><strong>'+tarihText+'</strong><span>'+saatText+'</span></div>'+
+        '<select class="st-sel randevu-mobile-state '+durumClass+'" onchange="durumGuncelle('+r.id+',this.value)">'+
+          '<option value="bekliyor" '+(r.durum==='bekliyor'?'selected':'')+'>'+(ld.durumBekliyor||'Bekliyor')+'</option>'+
+          '<option value="onaylandi" '+(r.durum==='onaylandi'?'selected':'')+'>'+(ld.durumOnaylandi||'Onaylandi')+'</option>'+
+          '<option value="tamamlandi" '+(r.durum==='tamamlandi'?'selected':'')+'>'+(ld.durumTamamlandi||'Tamamlandi')+'</option>'+
+          '<option value="iptal" '+(r.durum==='iptal'?'selected':'')+'>'+(ld.durumIptal||'Iptal')+'</option>'+
+        '</select>'+
+      '</div>'+
+      '<div class="randevu-mobile-customer">'+musteriText+'</div>'+
+      '<div class="randevu-mobile-info"><span class="randevu-mobile-label">Hizmet:</span><span class="randevu-mobile-value">'+hizmetText+'</span></div>'+
+      '<div class="randevu-mobile-info"><span class="randevu-mobile-label">Calisan:</span><span class="randevu-mobile-value">'+calisanText+'</span></div>'+
+      '<div class="randevu-mobile-info"><span class="randevu-mobile-label">Telefon:</span><span class="randevu-mobile-value">'+telefonText+'</span></div>'+
+      '<div class="randevu-mobile-info"><span class="randevu-mobile-label">Ucret:</span><span class="randevu-mobile-value">'+ucretText+'</span></div>'+
+      '<div class="randevu-mobile-actions">'+
+        '<button class="btn btn-icon btn-ghost" onclick="acDetay('+r.id+')" title="'+(ld.detayBtn||'Detay')+'">👁</button>'+
+        '<button class="btn btn-icon btn-ghost" onclick="notEkle('+r.id+',\''+esc(IP_LANG_CURRENT==='en' ? (r.notlar_en||r.notlar||'') : (r.notlar||''))+'\')" title="'+(ld.notEkleBtn||'Not ekle')+'">📝</button>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+
+window._calisanList = window._calisanList || [];
+window._hizmetList = window._hizmetList || [];
+
+function renderCalisanMobileCards(searchTerm) {
+  var listEl = document.getElementById('calisanMobileList');
+  if (!listEl) return;
+  var ld = IP_LANGS[IP_LANG_CURRENT] || IP_LANGS['tr'];
+  var term = (searchTerm == null ? ((document.getElementById('calisanAramaInput') || {}).value || '') : searchTerm).trim().toLocaleLowerCase('tr-TR');
+  var items = (window._calisanList || []).filter(function(c) {
+    if (!term) return true;
+    return [c.ad, c.uzmanlik, c.telefon, c.isletme_adi].join(' ').toLocaleLowerCase('tr-TR').indexOf(term) !== -1;
+  });
+
+  if (!items.length) {
+    listEl.innerHTML = '<div class="yonetim-mobile-empty">'+(term ? ld.randevuBulunamadi : ld.calisanEklenmemis)+'</div>';
+    return;
+  }
+
+  var uzmanlikLabels = {
+    berber: ld.uzmBerber || 'Berber',
+    epilasyon: ld.uzmEpilasyon || 'Epilasyon',
+    kasiyer: ld.uzmKasiyer || 'Kasiyer',
+    diger: ld.uzmDiger || 'Diger'
+  };
+  var uzmanlikIcons = { berber: '✂️', epilasyon: '✨', kasiyer: '💰', diger: '👤' };
+
+  listEl.innerHTML = items.map(function(c) {
+    var badgeClass = c.uzmanlik === 'berber' ? 'b-berber' : 'b-epilasyon';
+    return '<div class="yonetim-mobile-item">'+
+      '<div class="yonetim-mobile-top">'+
+        '<div><div class="yonetim-mobile-id">#'+c.id+'</div><div class="yonetim-mobile-name">'+escapeHtml(c.ad || '-')+'</div></div>'+
+        '<span class="badge yonetim-mobile-badge '+badgeClass+'">'+(uzmanlikIcons[c.uzmanlik] || '👤')+' '+escapeHtml(uzmanlikLabels[c.uzmanlik] || c.uzmanlik || '-')+'</span>'+
+      '</div>'+
+      '<div class="yonetim-mobile-lines">'+
+        '<div class="yonetim-mobile-line"><span class="yonetim-mobile-label">'+(ld.uzmanlik || 'Uzmanlik')+':</span><span class="yonetim-mobile-value">'+escapeHtml(uzmanlikLabels[c.uzmanlik] || c.uzmanlik || '-')+'</span></div>'+
+        '<div class="yonetim-mobile-line"><span class="yonetim-mobile-label">'+(ld.telefon || 'Telefon')+':</span><span class="yonetim-mobile-value">'+escapeHtml(c.telefon || '–')+'</span></div>'+
+        (c.isletme_adi && SES.super_admin ? '<div class="yonetim-mobile-line"><span class="yonetim-mobile-label">'+(ld.isletme || 'Isletme')+':</span><span class="yonetim-mobile-value">'+escapeHtml(c.isletme_adi)+'</span></div>' : '')+
+      '</div>'+
+      '<div class="yonetim-mobile-bottom">'+
+        '<div class="yonetim-mobile-toggle"><span>Aktif</span><label class="tog"><input type="checkbox" '+(c.aktif ? 'checked' : '')+' onchange="toggleCalisan('+c.id+',this.checked)"><span class="tog-sl"></span></label></div>'+
+      '</div>'+
+      '<div class="yonetim-mobile-actions">'+
+        '<button class="btn btn-icon btn-ghost" data-cid="'+c.id+'" onclick="editCalisanById(this)" title="Duzenle">✏️</button>'+
+        '<button class="btn btn-icon btn-danger" onclick="silCalisan('+c.id+')" title="Sil">🗑️</button>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+
+function renderHizmetMobileCards(searchTerm) {
+  var listEl = document.getElementById('hizmetMobileList');
+  if (!listEl) return;
+  var ld = IP_LANGS[IP_LANG_CURRENT] || IP_LANGS['tr'];
+  var term = (searchTerm == null ? ((document.getElementById('hizmetAramaInput') || {}).value || '') : searchTerm).trim().toLocaleLowerCase('tr-TR');
+  var items = (window._hizmetList || []).filter(function(h) {
+    var ad = (IP_LANG_CURRENT === 'en' && h.ad_en) ? h.ad_en : h.ad;
+    if (!term) return true;
+    return [ad, h.kategori, h.calisan_adi, h.isletme_adi].join(' ').toLocaleLowerCase('tr-TR').indexOf(term) !== -1;
+  });
+
+  if (!items.length) {
+    listEl.innerHTML = '<div class="yonetim-mobile-empty">'+(term ? ld.randevuBulunamadi : ld.hizmetEklenmemis)+'</div>';
+    return;
+  }
+
+  var sureBirim = IP_LANG_CURRENT === 'en' ? 'min' : 'dk';
+
+  listEl.innerHTML = items.map(function(h) {
+    var badgeClass = h.kategori === 'berber' ? 'b-berber' : 'b-epilasyon';
+    var katAd = h.kategori === 'berber' ? (IP_LANG_CURRENT === 'en' ? 'Barber' : 'Berber') : (IP_LANG_CURRENT === 'en' ? 'Epilation' : 'Epilasyon');
+    var hizmetAdi = (IP_LANG_CURRENT === 'en' && h.ad_en) ? h.ad_en : h.ad;
+    return '<div class="yonetim-mobile-item">'+
+      '<div class="yonetim-mobile-top">'+
+        '<div><div class="yonetim-mobile-id">#'+h.id+'</div><div class="yonetim-mobile-name">'+escapeHtml(hizmetAdi || '-')+'</div></div>'+
+        '<span class="badge yonetim-mobile-badge '+badgeClass+'">'+(h.kategori === 'berber' ? '✂️ ' : '✨ ')+escapeHtml(katAd)+'</span>'+
+      '</div>'+
+      '<div class="yonetim-mobile-lines">'+
+        '<div class="yonetim-mobile-line"><span class="yonetim-mobile-label">'+(ld.kategori || 'Kategori')+':</span><span class="yonetim-mobile-value">'+escapeHtml(katAd)+'</span></div>'+
+        '<div class="yonetim-mobile-line"><span class="yonetim-mobile-label">'+(ld.sureDakika || 'Sure')+':</span><span class="yonetim-mobile-value">'+escapeHtml(String(h.sure || 0) + ' ' + sureBirim)+'</span></div>'+
+        '<div class="yonetim-mobile-line"><span class="yonetim-mobile-label">'+(ld.fiyatTL || 'Fiyat')+':</span><span class="yonetim-mobile-value">'+escapeHtml(parseFloat(h.ucret || 0).toLocaleString('tr-TR') + ' ₺')+'</span></div>'+
+        '<div class="yonetim-mobile-line"><span class="yonetim-mobile-label">'+(ld.sorumluCalisan || 'Sorumlu Uzman')+':</span><span class="yonetim-mobile-value">'+escapeHtml(h.calisan_adi || '–')+'</span></div>'+
+        (h.isletme_adi && SES.super_admin ? '<div class="yonetim-mobile-line"><span class="yonetim-mobile-label">'+(ld.isletme || 'Isletme')+':</span><span class="yonetim-mobile-value">'+escapeHtml(h.isletme_adi)+'</span></div>' : '')+
+      '</div>'+
+      '<div class="yonetim-mobile-bottom">'+
+        '<div class="yonetim-mobile-toggle"><span>Aktif</span><label class="tog"><input type="checkbox" '+(h.aktif ? 'checked' : '')+' onchange="toggleHizmet('+h.id+',this.checked)"><span class="tog-sl"></span></label></div>'+
+      '</div>'+
+      '<div class="yonetim-mobile-actions">'+
+        '<button class="btn btn-icon btn-ghost" data-hid="'+h.id+'" onclick="editHizmetById(this)" title="Duzenle">✏️</button>'+
+        '<button class="btn btn-icon btn-danger" onclick="silHizmet('+h.id+')" title="Sil">🗑️</button>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+
+async function loadCalisanlar() {
+  var tb = document.getElementById('calisanBody');
+  var mobileList = document.getElementById('calisanMobileList');
+  if (tb) tb.innerHTML = '<tr><td colspan="6" class="tbl-empty"><div class="sp"></div></td></tr>';
+  if (mobileList) mobileList.innerHTML = '<div class="yonetim-mobile-empty"><div class="sp"></div></div>';
+  var d = await api('/api/calisanlar');
+  if (d && d.success) {
+    window._calisanList = d.calisanlar || [];
+    window._calisanlar = d.calisanlar || [];
+    window._calisanMap = {};
+    d.calisanlar.forEach(function(c){ window._calisanMap[c.id] = c; });
+    var sel = document.getElementById('hCalisan');
+    if (sel) {
+      sel.innerHTML = '<option value="0">'+(IP_LANGS[IP_LANG_CURRENT]||IP_LANGS['tr']).uzmanSecOpsiyonel+'</option>';
+      window._calisanlar.forEach(function(c){ sel.innerHTML += '<option value="'+c.id+'">'+c.ad+'</option>'; });
+    }
+  }
+  if (!d||!d.success) {
+    if (tb) tb.innerHTML='<tr><td colspan="6" class="tbl-empty">'+(IP_LANGS[IP_LANG_CURRENT]||IP_LANGS['tr']).veriAlinamadi+'</td></tr>';
+    if (mobileList) mobileList.innerHTML = '<div class="yonetim-mobile-empty">'+(IP_LANGS[IP_LANG_CURRENT]||IP_LANGS['tr']).veriAlinamadi+'</div>';
+    return;
+  }
+  if (!d.calisanlar.length) {
+    if (tb) tb.innerHTML='<tr><td colspan="6" class="tbl-empty">'+(IP_LANGS[IP_LANG_CURRENT]||IP_LANGS['tr']).calisanEklenmemis+'</td></tr>';
+    renderCalisanMobileCards('');
+    return;
+  }
+  var uzmIco = {berber:'✂️',epilasyon:'✨',kasiyer:'💰',diger:'👤'};
+  if (tb) {
+    tb.innerHTML = d.calisanlar.map(function(c){
+      return '<tr>'+
+        '<td><b>#'+c.id+'</b></td>'+
+        '<td><b>'+c.ad+'</b>'+(c.isletme_adi&&SES.super_admin?'<br><small style="color:#94a3b8">'+c.isletme_adi+'</small>':'')+
+        '<td><span class="badge '+(c.uzmanlik==='berber'?'b-berber':'b-epilasyon')+'">'+
+          (uzmIco[c.uzmanlik]||'👤')+' '+c.uzmanlik+'</span></td>'+
+        '<td>'+(c.telefon||'–')+'</td>'+
+        '<td><label class="tog"><input type="checkbox" '+(c.aktif?'checked':'')+' onchange="toggleCalisan('+c.id+',this.checked)"><span class="tog-sl"></span></label></td>'+
+        '<td style="display:flex;gap:4px">'+
+          '<button class="btn btn-icon btn-ghost" data-cid="'+c.id+'" onclick="editCalisanById(this)">✏️</button>'+
+          '<button class="btn btn-icon btn-danger" onclick="silCalisan('+c.id+')" style="margin-left:3px">🗑️</button>'+
+        '</td>'+
+      '</tr>';
+    }).join('');
+  }
+  renderCalisanMobileCards('');
+}
+
+async function loadHizmetler() {
+  var tb = document.getElementById('hizmetBody');
+  var mobileList = document.getElementById('hizmetMobileList');
+  var ld = IP_LANGS[IP_LANG_CURRENT] || IP_LANGS['tr'];
+  if (tb) tb.innerHTML = '<tr><td colspan="9" class="tbl-empty"><div class="sp"></div></td></tr>';
+  if (mobileList) mobileList.innerHTML = '<div class="yonetim-mobile-empty"><div class="sp"></div></div>';
+  var d = await api('/api/hizmetler');
+  if (!d||!d.success) {
+    if (tb) tb.innerHTML='<tr><td colspan="9" class="tbl-empty">'+ld.veriAlinamadi+'</td></tr>';
+    if (mobileList) mobileList.innerHTML = '<div class="yonetim-mobile-empty">'+ld.veriAlinamadi+'</div>';
+    return;
+  }
+  window._hizmetList = d.hizmetler || [];
+  if (!d.hizmetler||!d.hizmetler.length) {
+    if (tb) tb.innerHTML='<tr><td colspan="9" class="tbl-empty">'+ld.hizmetEklenmemis+'</td></tr>';
+    renderHizmetMobileCards('');
+    return;
+  }
+  var sureBirim = IP_LANG_CURRENT === 'en' ? 'min' : 'dk';
+  window._hizmetMap = {};
+  d.hizmetler.forEach(function(h){ window._hizmetMap[h.id] = h; });
+  if (tb) {
+    tb.innerHTML = d.hizmetler.map(function(h){
+      var uzman = h.calisan_adi
+        ? '<span style="background:#f0f9ff;border-radius:20px;padding:2px 8px;font-size:12px;color:#0369a1">👤 '+h.calisan_adi+'</span>'
+        : '<span style="color:#cbd5e1;font-size:12px">—</span>';
+      var katAd = h.kategori === 'berber'
+        ? (IP_LANG_CURRENT === 'en' ? 'Barber' : 'Berber')
+        : (IP_LANG_CURRENT === 'en' ? 'Epilation' : 'Epilasyon');
+      var hizmetAdi = (IP_LANG_CURRENT === 'en' && h.ad_en) ? h.ad_en : h.ad;
+      return '<tr>'+
+        '<td><b>#'+h.id+'</b></td>'+
+        '<td><b>'+hizmetAdi+'</b>'+(h.isletme_adi&&SES.super_admin?'<br><small style="color:#94a3b8">'+h.isletme_adi+'</small>':'')+'</td>'+
+        '<td><span class="badge '+(h.kategori==='berber'?'b-berber':'b-epilasyon')+'">'+(h.kategori==='berber'?'✂️':'✨')+' '+katAd+'</span></td>'+
+        '<td>'+h.sure+' '+sureBirim+'</td>'+
+        '<td><b>'+parseFloat(h.ucret).toLocaleString('tr-TR')+' ₺</b></td>'+
+        '<td>'+uzman+'</td>'+
+        '<td><label class="tog"><input type="checkbox" '+(h.aktif?'checked':'')+' onchange="toggleHizmet('+h.id+',this.checked)"><span class="tog-sl"></span></label></td>'+
+        '<td style="display:flex;gap:4px">'+
+          '<button class="btn btn-icon btn-ghost" data-hid="'+h.id+'" onclick="editHizmetById(this)">✏️</button>'+
+          '<button class="btn btn-icon btn-danger" onclick="silHizmet('+h.id+')" style="margin-left:3px">🗑️</button>'+
+        '</td>'+
+      '</tr>';
+    }).join('');
+  }
+  renderHizmetMobileCards('');
+}

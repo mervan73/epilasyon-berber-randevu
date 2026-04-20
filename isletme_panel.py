@@ -8,6 +8,7 @@ from flask_cors import CORS
 import pyodbc
 import urllib.request as urllib_req
 import urllib.parse
+from translation_service import TranslationService
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 
@@ -16,6 +17,15 @@ app = Flask(__name__,
     static_folder=os.path.join(BASE, 'static'))
 app.secret_key = 'isletme-panel-2024-xyz'
 CORS(app)
+app.config['TEMPLATES_AUTO_RELOAD'] = True
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
+
+@app.after_request
+def add_no_cache_headers(resp):
+    resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    resp.headers['Pragma'] = 'no-cache'
+    resp.headers['Expires'] = '0'
+    return resp
 
 SERVER   = 'DESKTOP-T20P6DA\\SQLEXPRESS'
 DATABASE = 'BerberRandevu'
@@ -24,36 +34,43 @@ CONN     = f'DRIVER={{SQL Server}};SERVER={SERVER};DATABASE={DATABASE};Trusted_C
 def db():
     return pyodbc.connect(CONN, timeout=10)
 
+translation_service = TranslationService(db)
+
 # ─────────────────────────────────────────────────────────────────
 # OTOMATİK ÇEVİRİ — Google Translate (ücretsiz, key gerektirmez)
 # ─────────────────────────────────────────────────────────────────
-def auto_translate_tr_en(text):
-    """Türkçe hizmet adını Google Translate ile İngilizce'ye çevirir.
-    Key gerekmez, ücretsiz, her zaman çalışır."""
-    if not text or not text.strip():
-        return ''
+def auto_translate(text, source_lang='tr', target_lang='en'):
     try:
-        params = urllib.parse.urlencode({
-            'client': 'gtx',
-            'sl': 'tr',
-            'tl': 'en',
-            'dt': 't',
-            'q': text.strip()
-        })
-        url = f'https://translate.googleapis.com/translate_a/single?{params}'
-        req = urllib_req.Request(url, headers={
-            'User-Agent': 'Mozilla/5.0'
-        })
-        with urllib_req.urlopen(req, timeout=8) as resp:
-            data = json.loads(resp.read().decode('utf-8'))
-            # Google yanıt formatı: [[[çeviri, orijinal, ...], ...], ...]
-            result = data[0][0][0].strip()
-            print(f"  [çeviri] '{text}' → '{result}'")
-            if result and len(result) < 150:
-                return result
+        return translation_service.translate_text(text, source_lang=source_lang, target_lang=target_lang)
     except Exception as ex:
-        print(f"  [çeviri] Hata: {ex}")
+        print(f"  [ceviri] Hata: {ex}")
     return ''
+
+def auto_translate_tr_en(text):
+    return auto_translate(text, 'tr', 'en')
+
+def auto_translate_en_tr(text):
+    return auto_translate(text, 'en', 'tr')
+
+def localize_appointment_note(note, lang='tr'):
+    note = (note or '').strip()
+    if not note:
+        return ''
+
+    note_map = {
+        'randevu onaylandı': {'tr': 'randevu onaylandı', 'en': 'appointment approved'},
+        'randevu tamamlandı': {'tr': 'randevu tamamlandı', 'en': 'appointment completed'},
+        'randevu iptal edildi': {'tr': 'randevu iptal edildi', 'en': 'appointment cancelled'},
+        'beklemede': {'tr': 'beklemede', 'en': 'pending'},
+    }
+
+    key = note.lower()
+    if key in note_map:
+        return note_map[key].get(lang, note)
+
+    if lang == 'en':
+        return auto_translate_tr_en(note) or note
+    return note
 
 # ─────────────────────────────────────────────────────────────────
 # VERİTABANI HAZIRLIK
@@ -101,6 +118,10 @@ def init_db():
     sutun('isletmeler', 'yonetici_tel', 'NVARCHAR(20) NULL')
     sutun('isletmeler', 'email',        'NVARCHAR(100) NULL')
     sutun('isletmeler', 'sifre',        'NVARCHAR(200) NULL')
+    sutun('isletmeler', 'il',           'NVARCHAR(100) NULL')
+    sutun('isletmeler', 'ilce',         'NVARCHAR(100) NULL')
+    sutun('isletmeler', 'latitude',     'FLOAT NULL')
+    sutun('isletmeler', 'longitude',    'FLOAT NULL')
     sutun('hizmetler',  'aktif',        'BIT DEFAULT 1')
     sutun('hizmetler',  'calisan_id',   'INT NULL')   # ← hizmete çalışan bağlama
     sutun('hizmetler',  'ad_en',        'NVARCHAR(200) NULL')  # ← İngilizce hizmet adı
@@ -109,6 +130,21 @@ def init_db():
     # NULL aktif düzelt
     for t in ('hizmetler', 'calisanlar', 'isletmeler'):
         try: cur.execute(f"UPDATE {t} SET aktif=1 WHERE aktif IS NULL")
+        except: pass
+
+    # Dil uyumu düzeltmesi:
+    # Eski kayıtta ad/ad_en İngilizce aynıysa TR ad alanını EN->TR çevir.
+    try:
+        cur.execute("SELECT id, ad, ISNULL(ad_en,'') FROM hizmetler WHERE ISNULL(ad_en,'')<>'' AND ad=ad_en")
+        for hid, ad, ad_en in cur.fetchall():
+            ad_tr = auto_translate_en_tr(ad_en) or ad
+            if ad_tr:
+                cur.execute("UPDATE hizmetler SET ad=? WHERE id=?", ad_tr, hid)
+        con.commit()
+        print("  ✅ hizmet adları dil uyumu kontrol edildi")
+    except Exception as ex:
+        print(f"  hizmet dil uyumu: {ex}")
+        try: con.rollback()
         except: pass
 
     # ADIM 3 — calisma_saatleri — KESİNLİKLE FK CONSTRAINT YOK
@@ -193,7 +229,15 @@ def zaman_str(v):
 @app.route('/')
 def index():
     if giris_yok(): return redirect('/giris')
-    return render_template('isletme_panel.html')
+    try:
+        css_path = os.path.join(app.root_path, 'static', 'css', 'isletme_panel.css')
+        js_path = os.path.join(app.root_path, 'static', 'js', 'isletme_panel.js')
+        css_mtime = int(os.path.getmtime(css_path)) if os.path.exists(css_path) else 0
+        js_mtime = int(os.path.getmtime(js_path)) if os.path.exists(js_path) else 0
+        asset_v = max(css_mtime, js_mtime)
+    except Exception:
+        asset_v = 0
+    return render_template('isletme_panel.html', asset_v=asset_v)
 
 @app.route('/giris')
 def giris_sayfasi():
@@ -213,11 +257,26 @@ def kayit():
         tel   = (d.get('telefon') or '').strip()
         i_ad  = (d.get('isletme_ad')  or '').strip()
         i_tur = (d.get('isletme_tur') or 'berber').strip()
+        i_il  = (d.get('isletme_il') or '').strip()
+        i_ilce = (d.get('isletme_ilce') or '').strip()
         i_adr = (d.get('isletme_adres')   or '').strip()
         i_tel = (d.get('isletme_tel') or d.get('isletme_telefon') or '').strip()
+        i_lat = d.get('isletme_latitude')
+        i_lng = d.get('isletme_longitude')
+
+        try:
+            i_lat = float(i_lat) if i_lat not in (None, '', 'null', 'undefined') else None
+        except Exception:
+            i_lat = None
+        try:
+            i_lng = float(i_lng) if i_lng not in (None, '', 'null', 'undefined') else None
+        except Exception:
+            i_lng = None
 
         if not ad or not email or not sifre or not i_ad:
             return jsonify(success=False, message='Ad, email, şifre ve işletme adı zorunludur!'), 400
+        if not i_il or not i_ilce:
+            return jsonify(success=False, message='İl ve ilçe zorunludur!'), 400
         if len(sifre) < 6:
             return jsonify(success=False, message='Şifre en az 6 karakter!'), 400
 
@@ -231,10 +290,10 @@ def kayit():
 
         # Sadece isletmeler tablosuna kayıt — adminler tablosuna DOKUNMA
         cur.execute("""
-            INSERT INTO isletmeler(ad,tur,adres,telefon,aktif,kayit_tarihi,
-                                   yonetici_ad,yonetici_tel,email,sifre)
-            VALUES(?,?,?,?,1,GETDATE(),?,?,?,?)
-        """, i_ad, i_tur, i_adr, i_tel, ad, tel, email, sifre)
+            INSERT INTO isletmeler(ad,tur,il,ilce,adres,telefon,aktif,kayit_tarihi,
+                                   yonetici_ad,yonetici_tel,email,sifre,latitude,longitude)
+            VALUES(?,?,?,?,?, ?,1,GETDATE(),?,?,?,?,?,?)
+        """, i_ad, i_tur, i_il, i_ilce, i_adr, i_tel, ad, tel, email, sifre, i_lat, i_lng)
 
         # Yeni işletmenin id'si
         cur.execute("SELECT TOP 1 id FROM isletmeler ORDER BY id DESC")
@@ -328,6 +387,22 @@ def isletme_profil_guncelle():
     if sifre and len(sifre) < 6:
         return jsonify(success=False, message='Şifre en az 6 karakter!'), 400
     try:
+        lat = float(lat) if lat not in (None, '', 'null', 'undefined') else None
+    except Exception:
+        lat = None
+    try:
+        lng = float(lng) if lng not in (None, '', 'null', 'undefined') else None
+    except Exception:
+        lng = None
+    try:
+        lat = float(lat) if lat not in (None, '', 'null', 'undefined') else None
+    except Exception:
+        lat = None
+    try:
+        lng = float(lng) if lng not in (None, '', 'null', 'undefined') else None
+    except Exception:
+        lng = None
+    try:
         con = db(); cur = con.cursor()
         if e:
             # isletmeler tablosundaki email, sifre, yonetici_ad güncelle
@@ -414,7 +489,7 @@ def randevular():
                    CONVERT(VARCHAR(5), r.saat, 108) AS saat,
                    r.durum, ISNULL(r.notlar,''),
                    r.musteri_adi, r.musteri_telefon,
-                   ISNULL(i.ad,''), ISNULL(c.ad,''), ISNULL(h.ad,''),
+                   ISNULL(i.ad,''), ISNULL(c.ad,''), ISNULL(h.ad,''), ISNULL(h.ad_en,''),
                    ISNULL(CAST(h.ucret AS NVARCHAR),''),
                    r.isletme_id
             FROM randevular r
@@ -425,8 +500,10 @@ def randevular():
             ORDER BY r.tarih DESC, r.saat DESC
         """, params)
         keys = ['id','tarih','saat','durum','notlar','musteri_adi','musteri_telefon',
-                'isletme_adi','calisan_adi','hizmet_adi','ucret','isletme_id']
+                'isletme_adi','calisan_adi','hizmet_adi','hizmet_adi_en','ucret','isletme_id']
         rows = [dict(zip(keys, r)) for r in cur.fetchall()]
+        for row in rows:
+            row['notlar_en'] = localize_appointment_note(row.get('notlar', ''), 'en')
         con.close()
         return jsonify(success=True, randevular=rows)
     except Exception as ex:
@@ -507,14 +584,22 @@ def hizmet_ekle():
     e  = eid() or d.get('isletme_id')
     if not e or not d.get('ad'):
         return jsonify(success=False, message='İşletme ve hizmet adı zorunlu!'), 400
+    panel_lang = (d.get('panel_lang') or 'tr').strip().lower()
+    raw_ad = (d.get('ad') or '').strip()
     calisan_id = int(d['calisan_id']) if d.get('calisan_id') and str(d.get('calisan_id')) not in ('','0','null') else None
     try:
-        # Otomatik İngilizce çeviri
-        ad_en = auto_translate_tr_en(d['ad'])
+        # Panel dili EN ise girilen ad İngilizce kabul edilir ve TR adı üretilir.
+        if panel_lang == 'en':
+            ad_en = raw_ad
+            ad_tr = auto_translate_en_tr(raw_ad) or raw_ad
+        else:
+            ad_tr = raw_ad
+            ad_en = auto_translate_tr_en(raw_ad) or None
+
         con = db(); cur = con.cursor()
         cur.execute(
             "INSERT INTO hizmetler(isletme_id,ad,ad_en,kategori,sure,ucret,aktif,calisan_id) VALUES(?,?,?,?,?,?,1,?)",
-            e, d['ad'], ad_en or None, d.get('kategori','berber'), int(d.get('sure',30)), float(d.get('ucret',0)), calisan_id
+            e, ad_tr, ad_en or None, d.get('kategori','berber'), int(d.get('sure',30)), float(d.get('ucret',0)), calisan_id
         )
         con.commit(); con.close()
         return jsonify(success=True, message='Hizmet eklendi!')
@@ -525,24 +610,29 @@ def hizmet_ekle():
 def hizmet_guncelle(hid):
     if giris_yok(): return jsonify(success=False), 401
     d = request.get_json(force=True, silent=True) or {}
+    panel_lang = (d.get('panel_lang') or 'tr').strip().lower()
+    raw_ad = (d.get('ad') or '').strip()
     calisan_id = int(d['calisan_id']) if d.get('calisan_id') and str(d.get('calisan_id')) not in ('','0','null') else None
     try:
         con = db(); cur = con.cursor()
-        # Mevcut ad_en'i kontrol et — ad değiştiyse yeniden çevir
         cur.execute("SELECT ad, ISNULL(ad_en,'') FROM hizmetler WHERE id=?", hid)
         row = cur.fetchone()
-        if row and row[0] != d.get('ad', ''):
-            # Ad değişti → yeniden çevir
-            ad_en = auto_translate_tr_en(d['ad'])
-        elif row and not row[1]:
-            # ad_en hiç girilmemiş → çevir
-            ad_en = auto_translate_tr_en(d['ad'])
+
+        if panel_lang == 'en':
+            # EN panelde girilen ad EN kabul edilir.
+            ad_en = raw_ad
+            ad_tr = auto_translate_en_tr(raw_ad) or (row[0] if row else raw_ad)
         else:
-            # Ad aynı, ad_en zaten var → dokunma
-            ad_en = row[1] if row else ''
+            # TR panelde girilen ad TR kabul edilir.
+            ad_tr = raw_ad
+            if row and row[0] == raw_ad and row[1]:
+                ad_en = row[1]
+            else:
+                ad_en = auto_translate_tr_en(raw_ad) or (row[1] if row else '')
+
         cur.execute(
             "UPDATE hizmetler SET ad=?,ad_en=?,kategori=?,sure=?,ucret=?,aktif=?,calisan_id=? WHERE id=?",
-            d['ad'], ad_en or None, d['kategori'], int(d['sure']), float(d['ucret']),
+            ad_tr, ad_en or None, d['kategori'], int(d['sure']), float(d['ucret']),
             1 if d.get('aktif', True) else 0, calisan_id, hid
         )
         con.commit(); con.close()
@@ -671,15 +761,18 @@ def isletme_bilgi():
         con = db(); cur = con.cursor()
         cur.execute("""
             SELECT id, ad, tur,
-                   ISNULL(adres,''), ISNULL(telefon,''), ISNULL(aciklama,''),
-                   ISNULL(aktif,1), ISNULL(email,''), ISNULL(yonetici_ad,'')
+                   ISNULL(il,''), ISNULL(ilce,''), ISNULL(adres,''), ISNULL(telefon,''), ISNULL(aciklama,''),
+                   ISNULL(aktif,1), ISNULL(email,''), ISNULL(yonetici_ad,''),
+                   CAST(ISNULL(latitude, 0) AS FLOAT), CAST(ISNULL(longitude, 0) AS FLOAT)
             FROM isletmeler WHERE id=?
         """, e)
         row = cur.fetchone(); con.close()
         if not row: return jsonify(success=False, message='İşletme bulunamadı!'), 404
-        keys = ['id','ad','tur','adres','telefon','aciklama','aktif','email','yonetici_ad']
+        keys = ['id','ad','tur','il','ilce','adres','telefon','aciklama','aktif','email','yonetici_ad','latitude','longitude']
         r = dict(zip(keys, row))
         r['aktif'] = bool(r['aktif'])
+        r['latitude'] = float(r['latitude']) if r.get('latitude') else None
+        r['longitude'] = float(r['longitude']) if r.get('longitude') else None
         return jsonify(success=True, isletme=r)
     except Exception as ex:
         return jsonify(success=False, message=str(ex)), 500
@@ -692,11 +785,25 @@ def isletme_guncelle():
     d = request.get_json(force=True, silent=True) or {}
     tur = d.get('tur', 'berber')
     if tur not in ('berber', 'epilasyon'): tur = 'berber'
+    il = (d.get('il') or '').strip()
+    ilce = (d.get('ilce') or '').strip()
+    lat = d.get('latitude')
+    lng = d.get('longitude')
+    try:
+        lat = float(lat) if lat not in (None, '', 'null', 'undefined') else None
+    except Exception:
+        lat = None
+    try:
+        lng = float(lng) if lng not in (None, '', 'null', 'undefined') else None
+    except Exception:
+        lng = None
+    if not il or not ilce:
+        return jsonify(success=False, message='İl ve ilçe zorunludur!'), 400
     try:
         con = db(); cur = con.cursor()
-        cur.execute("UPDATE isletmeler SET ad=?,tur=?,adres=?,telefon=?,aciklama=?,aktif=? WHERE id=?",
-                    d['ad'], tur, d.get('adres',''), d.get('telefon',''),
-                    d.get('aciklama',''), 1 if d.get('aktif',True) else 0, e)
+        cur.execute("UPDATE isletmeler SET ad=?,tur=?,il=?,ilce=?,adres=?,telefon=?,aciklama=?,aktif=?,latitude=?,longitude=? WHERE id=?",
+                    d['ad'], tur, il, ilce, d.get('adres',''), d.get('telefon',''),
+                    d.get('aciklama',''), 1 if d.get('aktif',True) else 0, lat, lng, e)
         con.commit()
         cur.execute("SELECT ad,tur FROM isletmeler WHERE id=?", e)
         row = cur.fetchone(); con.close()
@@ -818,6 +925,33 @@ def isletmeler_listesi():
         return jsonify(success=False, isletmeler=[])
 
 # ─────────────────────────────────────────────────────────────────
+@app.route('/api/translation-config')
+def translation_config():
+    try:
+        translation_service.ensure_schema()
+    except Exception:
+        pass
+    return jsonify(success=True, **translation_service.status())
+
+@app.route('/api/translate', methods=['POST'])
+def api_translate():
+    try:
+        try:
+            translation_service.ensure_schema()
+        except Exception:
+            pass
+        d = request.get_json(force=True, silent=True) or {}
+        texts = d.get('texts') or []
+        if isinstance(texts, str):
+            texts = [texts]
+        source_lang = (d.get('source_lang') or 'tr').strip().lower()
+        target_lang = (d.get('target_lang') or 'en').strip().lower()
+        fmt = (d.get('format') or 'text').strip().lower()
+        translated = translation_service.translate_batch(texts, source_lang=source_lang, target_lang=target_lang, fmt=fmt)
+        return jsonify(success=True, provider=translation_service.provider, translations=translated)
+    except Exception as ex:
+        return jsonify(success=False, message=str(ex)), 500
+
 if __name__ == '__main__':
     print("=" * 50)
     print("🏪  İŞLETME YÖNETİM PANELİ  —  port 5002")

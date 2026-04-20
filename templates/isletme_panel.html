@@ -6,7 +6,7 @@
 <title>İşletme Yönetim Paneli</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-<link href="{{ url_for('static', filename='css/isletme_panel.css') }}" rel="stylesheet">
+<link href="{{ url_for('static', filename='css/isletme_panel.css', v=asset_v) }}" rel="stylesheet">
 </head>
 <body>
 
@@ -66,6 +66,8 @@
   </div>
 </div>
 
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
 <div class="main">
   <div class="topbar">
     <button class="topbar-toggle" id="sidebarToggleBtn" onclick="toggleSidebar()">
@@ -82,33 +84,33 @@
     <!-- DASHBOARD -->
     <div class="tab active" id="tab-dashboard">
       <div class="panel">
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:1px;background:#f1f5f9;border-radius:12px;overflow:hidden;margin-bottom:0">
-          <div style="background:#fff;padding:18px 16px;text-align:center">
+        <div class="dash-stats-grid">
+          <div class="dash-stat-card" style="background:#fff;padding:18px 16px;text-align:center">
             <div style="font-size:20px;margin-bottom:8px">⏳</div>
             <div style="font-size:26px;font-weight:800;color:#0f2b3d;line-height:1" id="sBekliyor">—</div>
             <div class="sc-lbl" data-iplang="bekleyen">Bekleyen</div>
           </div>
-          <div style="background:#fff;padding:18px 16px;text-align:center">
+          <div class="dash-stat-card" style="background:#fff;padding:18px 16px;text-align:center">
             <div style="font-size:20px;margin-bottom:8px">✅</div>
             <div style="font-size:26px;font-weight:800;color:#0f2b3d;line-height:1" id="sOnaylanan">—</div>
             <div class="sc-lbl" data-iplang="onaylanan">Onaylanan</div>
           </div>
-          <div style="background:#fff;padding:18px 16px;text-align:center">
+          <div class="dash-stat-card" style="background:#fff;padding:18px 16px;text-align:center">
             <div style="font-size:20px;margin-bottom:8px">📅</div>
             <div style="font-size:26px;font-weight:800;color:#0f2b3d;line-height:1" id="sBugun">—</div>
             <div class="sc-lbl" data-iplang="bugun">Bugün</div>
           </div>
-          <div style="background:#fff;padding:18px 16px;text-align:center">
+          <div class="dash-stat-card" style="background:#fff;padding:18px 16px;text-align:center">
             <div style="font-size:20px;margin-bottom:8px">📊</div>
             <div style="font-size:26px;font-weight:800;color:#0f2b3d;line-height:1" id="sToplamR">—</div>
             <div class="sc-lbl" data-iplang="toplamRandevu">Toplam Randevu</div>
           </div>
-          <div style="background:#fff;padding:18px 16px;text-align:center">
+          <div class="dash-stat-card" style="background:#fff;padding:18px 16px;text-align:center">
             <div style="font-size:20px;margin-bottom:8px" id="dashHizmetIco">✂️</div>
             <div style="font-size:26px;font-weight:800;color:#0f2b3d;line-height:1" id="sHizmet">—</div>
             <div class="sc-lbl" data-iplang="hizmet">Hizmet</div>
           </div>
-          <div style="background:#fff;padding:18px 16px;text-align:center">
+          <div class="dash-stat-card" style="background:#fff;padding:18px 16px;text-align:center">
             <div style="font-size:20px;margin-bottom:8px">👥</div>
             <div style="font-size:26px;font-weight:800;color:#0f2b3d;line-height:1" id="sCalisan">—</div>
             <div class="sc-lbl" data-iplang="calisan">Çalışan</div>
@@ -128,6 +130,7 @@
             <tbody id="dashBody"><tr><td colspan="6" class="tbl-empty"><div class="sp"></div></td></tr></tbody>
           </table>
         </div>
+        <div class="dash-mobile-list" id="dashMobileList"></div>
       </div>
     </div>
 
@@ -158,6 +161,7 @@
             <tbody id="randevuBody"><tr><td colspan="9" class="tbl-empty"><div class="sp"></div></td></tr></tbody>
           </table>
         </div>
+        <div class="randevu-mobile-list" id="randevuMobileList"></div>
       </div>
     </div>
 
@@ -203,7 +207,7 @@
             <div style="position:relative">
               <i class="fas fa-search" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:11px;pointer-events:none"></i>
               <input type="text" id="calisanAramaInput" placeholder="Ara..."
-                oninput="araTable('calisanBody', this.value, [1,2])"
+                oninput="araTable('calisanBody', this.value, [1,2]); renderCalisanMobileCards(this.value)"
                 style="padding:6px 10px 6px 30px;border:1.5px solid #e2e8f0;border-radius:20px;font-size:12.5px;width:200px;outline:none;background:#f8fafc"
                 onfocus="this.style.borderColor='#1b4a6b';this.style.background='#fff'"
                 onblur="this.style.borderColor='#e2e8f0';this.style.background='#f8fafc'">
@@ -221,6 +225,7 @@
             <tbody id="calisanBody"><tr><td colspan="6" class="tbl-empty"><div class="sp"></div></td></tr></tbody>
           </table>
         </div>
+        <div class="yonetim-mobile-list" id="calisanMobileList"></div>
       </div>
     </div>
 
@@ -278,7 +283,7 @@
             <div style="position:relative">
               <i class="fas fa-search" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:11px;pointer-events:none"></i>
               <input type="text" id="hizmetAramaInput" placeholder="Ara..."
-                oninput="araTable('hizmetBody', this.value, [0,1,2])"
+                oninput="araTable('hizmetBody', this.value, [0,1,2]); renderHizmetMobileCards(this.value)"
                 style="padding:6px 10px 6px 30px;border:1.5px solid #e2e8f0;border-radius:20px;font-size:12.5px;width:200px;outline:none;background:#f8fafc"
                 onfocus="this.style.borderColor='#1b4a6b';this.style.background='#fff'"
                 onblur="this.style.borderColor='#e2e8f0';this.style.background='#f8fafc'">
@@ -297,6 +302,7 @@
             <tbody id="hizmetBody"><tr><td colspan="8" class="tbl-empty"><div class="sp"></div></td></tr></tbody>
           </table>
         </div>
+        <div class="yonetim-mobile-list" id="hizmetMobileList"></div>
       </div>
     </div>
 
@@ -396,6 +402,16 @@
             <div class="fg">
               <label><span data-iplang="telefon">Telefon</span></label>
               <input id="ibTel" placeholder="0XXX XXX XX XX" oninput="onizlemeGuncelle()">
+            </div>
+          </div>
+          <div class="form-row" style="gap:13px;margin-bottom:13px">
+            <div class="fg">
+              <label><span data-iplang="il">İl</span> *</label>
+              <input id="ibIl" placeholder="İl" data-iplang-ph="phIl" oninput="onizlemeGuncelle()">
+            </div>
+            <div class="fg">
+              <label><span data-iplang="ilce">İlçe</span> *</label>
+              <input id="ibIlce" placeholder="İlçe" data-iplang-ph="phIlce" oninput="onizlemeGuncelle()">
             </div>
           </div>
           <div class="fg" style="margin-bottom:13px">
@@ -498,7 +514,7 @@
 <div class="toast" id="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="{{ url_for('static', filename='js/isletme_langs.js') }}"></script>
-<script src="{{ url_for('static', filename='js/isletme_panel.js') }}"></script>
+<script src="{{ url_for('static', filename='js/isletme_langs.js', v=asset_v) }}"></script>
+<script src="{{ url_for('static', filename='js/isletme_panel.js', v=asset_v) }}"></script>
 </body>
 </html>

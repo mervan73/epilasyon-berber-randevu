@@ -19,6 +19,11 @@ h1{font-size:1.55rem;font-weight:800;color:#0f2b3d;text-align:center;margin-bott
 .field label{display:block;font-size:12.5px;font-weight:600;color:#475569;margin-bottom:5px}
 .field input,.field select{width:100%;padding:11px 13px;border:2px solid #e2e8f0;border-radius:10px;font-size:14px;font-family:inherit;color:#1e293b;outline:none;transition:.2s;background:#fff}
 .field input:focus,.field select:focus{border-color:#1b4a6b;box-shadow:0 0 0 3px rgba(27,74,107,.1)}
+.pw-wrap{position:relative}
+.pw-wrap input{padding-right:52px}
+.pw-toggle{position:absolute;right:10px;top:50%;transform:translateY(-50%);border:none;background:transparent;color:#64748b;cursor:pointer;padding:4px;line-height:1;display:flex;align-items:center;justify-content:center;z-index:2}
+.pw-toggle:hover{color:#1b4a6b}
+.pw-toggle svg{width:18px;height:18px;display:block;stroke:currentColor}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .sec{font-size:12px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin:16px 0 10px;display:flex;align-items:center;gap:6px}
 .sec::after{content:'';flex:1;height:1px;background:#e2e8f0}
@@ -39,6 +44,20 @@ h1{font-size:1.55rem;font-weight:800;color:#0f2b3d;text-align:center;margin-bott
 .footer a{color:#1b4a6b;font-weight:700;text-decoration:none}
 .spin{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:sp .6s linear infinite;vertical-align:middle;margin-right:5px}
 @keyframes sp{to{transform:rotate(360deg)}}
+@media (max-width:768px){
+  body{padding:14px}
+  .card{padding:26px 18px;border-radius:18px}
+  .row2{grid-template-columns:1fr}
+  .tabs{margin-bottom:16px}
+  .tab{font-size:12.5px;padding:8px}
+}
+@media (max-width:480px){
+  .logo{width:56px;height:56px;font-size:24px;border-radius:14px}
+  h1{font-size:1.25rem}
+  .sub{font-size:12px}
+  .field input,.field select{padding:10px 11px;font-size:13px}
+  .btn{font-size:14px;padding:11px}
+}
 </style>
 </head>
 <body>
@@ -104,6 +123,14 @@ h1{font-size:1.55rem;font-weight:800;color:#0f2b3d;text-align:center;margin-bott
       <input type="text" id="k-iad" placeholder="ör. Ahmet Berber Salonu">
     </div>
     <div class="row2">
+      <div class="field"><label>İl *</label>
+        <input type="text" id="k-il" placeholder="ör. İstanbul">
+      </div>
+      <div class="field"><label>İlçe *</label>
+        <input type="text" id="k-ilce" placeholder="ör. Kadıköy">
+      </div>
+    </div>
+    <div class="row2">
       <div class="field"><label>İşletme Telefonu</label>
         <input type="tel" id="k-itel" placeholder="0XXX XXX XX XX">
       </div>
@@ -114,10 +141,50 @@ h1{font-size:1.55rem;font-weight:800;color:#0f2b3d;text-align:center;margin-bott
     <button class="btn" id="k-btn" onclick="kayit()">✨ İşletme &amp; Hesap Oluştur</button>
   </div>
 
-  <div class="footer"><a href="http://localhost:5000">← Kullanıcı Sitesine Dön</a></div>
+  <div class="footer"><a href="/">← Kullanıcı Sitesine Dön</a></div>
 </div>
 
 <script>
+document.addEventListener('DOMContentLoaded', function() {
+  setupPasswordToggle('g-sifre');
+  setupPasswordToggle('k-sifre');
+  setupPasswordToggle('k-sifre2');
+  var kayitPane = document.getElementById('p-kayit');
+  var kayitBtn = document.getElementById('k-btn');
+  if (!kayitPane || !kayitBtn || document.getElementById('k-lat')) return;
+  var wrap = document.createElement('div');
+  wrap.className = 'field';
+  wrap.innerHTML = [
+    '<label>Konum</label>',
+    '<div class="row2">',
+    '  <input type="text" id="k-lat" placeholder="Latitude" readonly>',
+    '  <input type="text" id="k-lng" placeholder="Longitude" readonly>',
+    '</div>',
+    '<div class="row2" style="margin-top:8px">',
+    '  <button type="button" class="btn" style="margin-top:0" onclick="konumAl()">📍 Mevcut Konumu Al</button>',
+    '  <button type="button" class="btn" style="margin-top:0;background:#fff;color:#1b4a6b;border:2px solid #dbe4ee;box-shadow:none" onclick="haritadaKontrolEt()">🗺️ Haritada Kontrol Et</button>',
+    '</div>'
+  ].join('');
+  kayitPane.insertBefore(wrap, kayitBtn);
+});
+
+function setupPasswordToggle(inputId) {
+  var input = document.getElementById(inputId);
+  if (!input || input.parentElement.classList.contains('pw-wrap')) return;
+  var wrap = document.createElement('div');
+  wrap.className = 'pw-wrap';
+  input.parentNode.insertBefore(wrap, input);
+  wrap.appendChild(input);
+
+  var btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'pw-toggle';
+  btn.setAttribute('aria-label', 'Şifreyi göster veya gizle');
+  btn.textContent = 'Göster';
+  btn.onclick = function() { togglePassword(inputId, btn); };
+  wrap.appendChild(btn);
+}
+
 var secilenTur = 'berber';
 
 function tab(t) {
@@ -157,6 +224,49 @@ function showAlert(id, type, msg) {
 }
 function hideAlert(id) { document.getElementById(id).style.display = 'none'; }
 
+function togglePassword(inputId, btn) {
+  var input = document.getElementById(inputId);
+  if (!input || !btn) return;
+  var show = input.type === 'password';
+  input.type = show ? 'text' : 'password';
+  btn.textContent = show ? 'Gizle' : 'Göster';
+}
+
+function haritaSorgusu() {
+  var lat = (document.getElementById('k-lat') || {}).value || '';
+  var lng = (document.getElementById('k-lng') || {}).value || '';
+  if (lat && lng) return 'https://www.google.com/maps?q=' + encodeURIComponent(lat + ',' + lng);
+  var adres = [
+    (document.getElementById('k-adres') || {}).value || '',
+    (document.getElementById('k-ilce') || {}).value || '',
+    (document.getElementById('k-il') || {}).value || ''
+  ].map(function(x){ return x.trim(); }).filter(Boolean).join(', ');
+  return adres ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(adres) : '';
+}
+
+function haritadaKontrolEt() {
+  var url = haritaSorgusu();
+  if (!url) {
+    showAlert('kayit-err','err','Önce adres veya konum girin!');
+    return;
+  }
+  window.open(url, '_blank', 'noopener');
+}
+
+function konumAl() {
+  hideAlert('kayit-err');
+  if (!navigator.geolocation) {
+    showAlert('kayit-err','err','Tarayıcı konum özelliğini desteklemiyor!');
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(function(pos){
+    if (document.getElementById('k-lat')) document.getElementById('k-lat').value = pos.coords.latitude.toFixed(6);
+    if (document.getElementById('k-lng')) document.getElementById('k-lng').value = pos.coords.longitude.toFixed(6);
+  }, function(err){
+    showAlert('kayit-err','err','Konum alınamadı: ' + err.message);
+  }, {enableHighAccuracy:true, timeout:10000, maximumAge:0});
+}
+
 async function giris() {
   var email = document.getElementById('g-email').value.trim();
   var sifre = document.getElementById('g-sifre').value;
@@ -192,8 +302,12 @@ async function kayit() {
   var sifre  = document.getElementById('k-sifre').value;
   var sifre2 = document.getElementById('k-sifre2').value;
   var iad    = document.getElementById('k-iad').value.trim();
+  var il     = document.getElementById('k-il').value.trim();
+  var ilce   = document.getElementById('k-ilce').value.trim();
   var itel   = document.getElementById('k-itel').value.trim();
   var adres  = document.getElementById('k-adres').value.trim();
+  var lat    = (document.getElementById('k-lat') || {}).value || '';
+  var lng    = (document.getElementById('k-lng') || {}).value || '';
   var btn    = document.getElementById('k-btn');
 
   hideAlert('kayit-err'); hideAlert('kayit-suc');
@@ -203,6 +317,8 @@ async function kayit() {
   if (sifre.length < 6) { showAlert('kayit-err','err','Şifre en az 6 karakter olmalı!'); return; }
   if (sifre !== sifre2)  { showAlert('kayit-err','err','Şifreler eşleşmiyor!'); return; }
   if (!iad)          { showAlert('kayit-err','err','İşletme adı zorunludur!'); return; }
+  if (!il)           { showAlert('kayit-err','err','İl zorunludur!'); return; }
+  if (!ilce)         { showAlert('kayit-err','err','İlçe zorunludur!'); return; }
 
   btn.innerHTML = '<span class="spin"></span>Oluşturuluyor...';
   btn.disabled = true;
@@ -214,7 +330,9 @@ async function kayit() {
       body: JSON.stringify({
         ad: ad, telefon: tel, email: email, sifre: sifre,
         isletme_ad: iad, isletme_tur: secilenTur,
-        isletme_tel: itel, isletme_adres: adres
+        isletme_il: il, isletme_ilce: ilce,
+        isletme_tel: itel, isletme_adres: adres,
+        isletme_latitude: lat || null, isletme_longitude: lng || null
       })
     });
     var data = await res.json();
@@ -231,6 +349,44 @@ async function kayit() {
     btn.disabled = false;
   }
 }
+
+function getEyeIcon(isOpen) {
+  if (isOpen) {
+    return '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3l18 18"></path><path d="M10.58 10.58a2 2 0 102.83 2.83"></path><path d="M9.88 5.09A9.77 9.77 0 0112 4.8c5.05 0 9.27 3.11 10.5 7.2a11.8 11.8 0 01-2.45 4.17"></path><path d="M6.61 6.61A11.76 11.76 0 001.5 12c.68 2.27 2.32 4.24 4.52 5.57A10.76 10.76 0 0012 19.2c1.61 0 3.14-.33 4.53-.93"></path></svg>';
+  }
+  return '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 12S5.5 4.8 12 4.8 22.5 12 22.5 12 18.5 19.2 12 19.2 1.5 12 1.5 12z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
+}
+
+setupPasswordToggle = function(inputId) {
+  var input = document.getElementById(inputId);
+  if (!input || input.parentElement.classList.contains('pw-wrap')) return;
+  var wrap = document.createElement('div');
+  wrap.className = 'pw-wrap';
+  input.parentNode.insertBefore(wrap, input);
+  wrap.appendChild(input);
+
+  var btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'pw-toggle';
+  btn.setAttribute('aria-label', 'Sifreyi goster veya gizle');
+  btn.innerHTML = getEyeIcon(false);
+  btn.onclick = function() { togglePassword(inputId, btn); };
+  wrap.appendChild(btn);
+};
+
+togglePassword = function(inputId, btn) {
+  var input = document.getElementById(inputId);
+  if (!input || !btn) return;
+  var show = input.type === 'password';
+  input.type = show ? 'text' : 'password';
+  btn.innerHTML = getEyeIcon(show);
+};
+
+document.addEventListener('DOMContentLoaded', function() {
+  var style = document.createElement('style');
+  style.textContent = '.pw-wrap input{padding-right:52px}.pw-toggle{position:absolute;right:10px;top:50%;transform:translateY(-50%);border:none;background:transparent;color:#64748b;cursor:pointer;padding:4px;line-height:1;display:flex;align-items:center;justify-content:center;z-index:2}.pw-toggle:hover{color:#1b4a6b}.pw-toggle svg{width:18px;height:18px;display:block;stroke:currentColor}';
+  document.head.appendChild(style);
+});
 </script>
 </body>
 </html>

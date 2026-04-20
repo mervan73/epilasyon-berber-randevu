@@ -37,7 +37,7 @@ var IP_LANGS = {
     acik: 'Açık', kapali: 'Kapalı',
     // İşletme bilgileri
     canliOnizleme: 'Canlı Önizleme', isletmeBilgDuzenle: 'İşletme Bilgilerini Düzenle',
-    isletmeAdi: 'İşletme Adı', adres: 'Adres',
+    isletmeAdi: 'İşletme Adı', il: 'İl', ilce: 'İlçe', adres: 'Adres',
     hakkinda: 'Hakkında', musteriGoster: '(müşterilere gösterilir)',
     isletmeAktif: 'İşletme Aktif',
     // Hesap
@@ -75,7 +75,11 @@ var IP_LANGS = {
     // Placeholderlar
     phHakkinda: 'İşletmeniz hakkında kısa bir tanıtım yazısı...',
     phSifreTekrar: 'Şifreyi tekrar girin', phEnAz6: 'En az 6 karakter',
-    phIsletmeAdi: 'İşletme adı', phAdres: 'İlçe, Mahalle, Cadde/Sokak No',
+    phIsletmeAdi: 'İşletme adı', phIl: 'İl', phIlce: 'İlçe', phAdres: 'İlçe, Mahalle, Cadde/Sokak No',
+    latitude: 'Latitude', longitude: 'Longitude',
+    konumuAl: 'Konumu Al', haritadaKontrol: 'Haritada Kontrol Et',
+    konumYok: 'Önce adres veya konum girin!', konumDesteklenmiyor: 'Tarayıcı konum özelliğini desteklemiyor!',
+    konumAlindi: 'Konum alındı!', konumAlinamadi: 'Konum alınamadı',
     phTarih: 'ör. Kurban Bayramı',
     phHizmetAdi: 'ör. Saç Kesimi',
     // Sidebar tur badge
@@ -93,7 +97,7 @@ var IP_LANGS = {
     isletmeSecin: 'İşletme seçin!',
     adZorunlu: 'Ad zorunlu!',
     adZorunludur: 'Ad zorunludur!',
-    isletmeAdiZorunlu: 'İşletme adı zorunludur!',
+    isletmeAdiZorunlu: 'İşletme adı zorunludur!', ilZorunlu: 'İl zorunludur!', ilceZorunlu: 'İlçe zorunludur!',
     // Confirm mesajları
     randevuIptalOnayi: 'Randevuyu iptal etmek istiyor musunuz?',
     calisanSilOnayi: 'Çalışanı silmek istiyor musunuz?',
@@ -156,6 +160,21 @@ var IP_LANGS = {
     hesapGuncelle: 'Hesap Bilgilerini Güncelle',
     // Randevu dropdown
     tumDurumlar: 'Tüm Durumlar',
+    randevuMusteri: 'Müşteri',
+    randevuTelefon: 'Telefon',
+    randevuHizmet: 'Hizmet',
+    randevuUcret: 'Ücret',
+    randevuCalisan: 'Çalışan',
+    randevuTarih: 'Tarih',
+    randevuDurum: 'Durum',
+    randevuNot: 'Not',
+    detayBtn: 'Detay',
+    notEkleBtn: 'Not ekle',
+    notEkleDuzenle: '📝 Not Ekle/Düzenle',
+    kapatBtn: 'Kapat',
+    randevuNotu: 'Randevu Notu',
+    randevuNo: 'Randevu',
+    notKaydedildi: '✅ Not kaydedildi!',
   },
   en: {
     pageTitle: 'Business Management Panel',
@@ -181,7 +200,7 @@ var IP_LANGS = {
     tatilGunler: 'Holidays / Closed Days', tatilGunuEkle: 'Add Holiday',
     acik: 'Open', kapali: 'Closed',
     canliOnizleme: 'Live Preview', isletmeBilgDuzenle: 'Edit Business Info',
-    isletmeAdi: 'Business Name', adres: 'Address',
+    isletmeAdi: 'Business Name', il: 'City', ilce: 'District', adres: 'Address',
     hakkinda: 'About', musteriGoster: '(shown to customers)',
     isletmeAktif: 'Business Active',
     hesapBilgileri: 'Account Settings',
@@ -212,7 +231,11 @@ var IP_LANGS = {
     // Placeholders
     phHakkinda: 'A brief introduction about your business...',
     phSifreTekrar: 'Re-enter password', phEnAz6: 'At least 6 characters',
-    phIsletmeAdi: 'Business name', phAdres: 'District, Neighborhood, Street No',
+    phIsletmeAdi: 'Business name', phIl: 'City', phIlce: 'District', phAdres: 'District, Neighborhood, Street No',
+    latitude: 'Latitude', longitude: 'Longitude',
+    konumuAl: 'Get Current Location', haritadaKontrol: 'Check on Map',
+    konumYok: 'Enter an address or location first!', konumDesteklenmiyor: 'This browser does not support geolocation!',
+    konumAlindi: 'Location captured!', konumAlinamadi: 'Location could not be captured',
     phTarih: 'e.g. National Holiday',
     phHizmetAdi: 'e.g. Haircut',
     // Sidebar tur badge
@@ -230,7 +253,7 @@ var IP_LANGS = {
     isletmeSecin: 'Select a business!',
     adZorunlu: 'Name is required!',
     adZorunludur: 'Name is required!',
-    isletmeAdiZorunlu: 'Business name is required!',
+    isletmeAdiZorunlu: 'Business name is required!', ilZorunlu: 'City is required!', ilceZorunlu: 'District is required!',
     // Confirm messages
     randevuIptalOnayi: 'Do you want to cancel this appointment?',
     calisanSilOnayi: 'Do you want to delete this staff member?',
@@ -293,5 +316,20 @@ var IP_LANGS = {
     hesapGuncelle: 'Update Account',
     // Randevu dropdown
     tumDurumlar: 'All Statuses',
+    randevuMusteri: 'Customer',
+    randevuTelefon: 'Phone',
+    randevuHizmet: 'Service',
+    randevuUcret: 'Price',
+    randevuCalisan: 'Staff',
+    randevuTarih: 'Date',
+    randevuDurum: 'Status',
+    randevuNot: 'Note',
+    detayBtn: 'Details',
+    notEkleBtn: 'Add note',
+    notEkleDuzenle: '📝 Add/Edit Note',
+    kapatBtn: 'Close',
+    randevuNotu: 'Appointment Note',
+    randevuNo: 'Appointment',
+    notKaydedildi: '✅ Note saved!',
   }
 };

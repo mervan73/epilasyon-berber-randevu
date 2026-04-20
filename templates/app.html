@@ -1,12 +1,27 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="tr" data-bs-theme="light">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Berber & Epilasyon | Randevu Sistemi</title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-<link href="{{ url_for('static', filename='css/app.css') }}" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+      onerror="this.onerror=null;this.href='https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css';">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+      rel="stylesheet"
+      onerror="this.onerror=null;this.href='https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css';">
+<link href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css"
+      rel="stylesheet"
+      onerror="this.onerror=null;this.href='https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.css';">
+<link href="{{ url_for('static', filename='css/app.css', v=asset_v|default(0)) }}" rel="stylesheet">
+<script>
+if (window.location.protocol === 'file:') {
+  var cssFallback = document.createElement('link');
+  cssFallback.rel = 'stylesheet';
+  cssFallback.href = '../static/css/app.css?v=' + Date.now();
+  document.head.appendChild(cssFallback);
+}
+</script>
 </head>
 <body>
 
@@ -18,7 +33,7 @@
 <div id="appSidebar" style="position:fixed;top:0;left:0;height:100vh;width:280px;background:#fff;z-index:2000;transform:translateX(-100%);transition:transform .28s cubic-bezier(.4,0,.2,1);box-shadow:4px 0 24px rgba(0,0,0,.15);display:flex;flex-direction:column">
 
   <!-- Başlık -->
-  <div style="padding:20px 20px 16px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between">
+  <div style="padding:20px 20px 16px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between;gap:12px">
     <div style="display:flex;align-items:center;gap:10px">
       <div style="width:38px;height:38px;background:linear-gradient(135deg,#0f2b3d,#1b4a6b);border-radius:10px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px"><i class="fas fa-scissors"></i></div>
       <div>
@@ -26,8 +41,8 @@
         <div style="font-size:.7rem;color:#94a3b8">Randevu Sistemi</div>
       </div>
     </div>
-    <button onclick="closeSidebar()" style="background:none;border:none;width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#64748b;font-size:1rem;transition:.15s" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='none'">
-      <i class="fas fa-times"></i>
+    <button id="sidebarCloseBtn" type="button" aria-label="Close menu" onclick="closeSidebar()" style="border:none;background:#f8fafc;color:#0f2b3d;width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex:0 0 auto">
+      <i class="fas fa-xmark"></i>
     </button>
   </div>
 
@@ -59,12 +74,6 @@
         <i class="fas fa-cog" style="width:18px;text-align:center;color:#1b4a6b"></i>
         <span data-lang="sbAyarlar">Ayarlar</span>
       </a>
-      <div id="sbAdminLink" style="display:none">
-        <a href="/admin-panel" onclick="closeSidebar()" style="display:flex;align-items:center;gap:12px;padding:11px 20px;color:#1b4a6b;font-size:.88rem;font-weight:700;cursor:pointer;transition:.15s;border-left:3px solid transparent;text-decoration:none" onmouseover="this.style.background='#f8fafc';this.style.borderLeftColor='#1b4a6b'" onmouseout="this.style.background='';this.style.borderLeftColor='transparent'">
-          <i class="fas fa-crown" style="width:18px;text-align:center"></i>
-          <span data-lang="sbAdminPanel">Yönetici Paneli</span>
-        </a>
-      </div>
       <div style="height:1px;background:#f1f5f9;margin:8px 16px"></div>
       <a onclick="closeSidebar();logout()" style="display:flex;align-items:center;gap:12px;padding:11px 20px;color:#dc2626;font-size:.88rem;font-weight:600;cursor:pointer;transition:.15s;border-left:3px solid transparent;text-decoration:none" onmouseover="this.style.background='#fef2f2';this.style.borderLeftColor='#dc2626'" onmouseout="this.style.background='';this.style.borderLeftColor='transparent'">
         <i class="fas fa-sign-out-alt" style="width:18px;text-align:center"></i>
@@ -78,11 +87,12 @@
         <i class="fas fa-sign-in-alt me-2"></i><span data-lang="navGiris">Giriş Yap</span>
       </button>
       <button class="btn btn-outline-secondary btn-sm w-100 fw-600" style="border-radius:8px;padding:10px" onclick="closeSidebar();openModal('register')">
-        <i class="fas fa-user-plus me-2"></i><span data-lang="navKayit">Kayıt Ol</span>
+        <i class="fas fa-user-plus me-2"></i><span data-lang="sbKayitOl">Kayıt Ol</span>
       </button>
     </div>
 
   </nav>
+
 
   <!-- Alt kısım -->
   <div style="padding:14px 20px;border-top:1px solid #f1f5f9">
@@ -95,16 +105,18 @@
 <!-- Karartma overlay -->
 <div id="sidebarOverlay" onclick="closeSidebar()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1999;backdrop-filter:blur(2px)"></div>
 
+<div id="appMain">
 <nav class="navbar navbar-expand-lg sticky-top">
   <div class="container">
 
     <!-- Sol: Hamburger + Marka -->
     <div class="d-flex align-items-center gap-2">
-      <button class="navbar-toggler-custom" onclick="openSidebar()" style="background:rgba(255,255,255,.15);border:1.5px solid rgba(255,255,255,.3);width:38px;height:38px;border-radius:9px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;font-size:1rem;transition:.2s;flex-shrink:0" onmouseover="this.style.background='rgba(255,255,255,.25)'" onmouseout="this.style.background='rgba(255,255,255,.15)'">
+      <button class="navbar-toggler-custom" onclick="toggleSidebar()">
         <i class="fas fa-bars"></i>
       </button>
-      <a class="navbar-brand mb-0" href="#">
-        <i class="fas fa-scissors"></i>Berber <span style="color:#67e8f9">&</span> Epilasyon
+      <a class="navbar-brand mb-0 d-flex align-items-center gap-2" href="#">
+        <i class="fas fa-scissors"></i>
+        <span style="font-weight:700">MBX BARBER &amp; BEAUTY</span>
       </a>
     </div>
 
@@ -119,26 +131,26 @@
 
       <!-- ARAMA -->
       <form class="d-flex nav-search" onsubmit="aramaYap(event)" style="position:relative">
-        <input class="form-control" id="navArama" type="search" placeholder="İşletme veya hizmet ara..." style="min-width:0;width:200px">
+        <div class="nav-search-input-wrap">
+          <i class="fas fa-search nav-search-icon" aria-hidden="true"></i>
+          <input class="form-control" id="navArama" type="search" placeholder="İşletme veya hizmet ara..." style="min-width:0;width:100%">
+        </div>
         <button class="btn" type="submit"><i class="fas fa-search"></i></button>
       </form>
 
       <!-- Giriş yapılmamış -->
       <div id="guestMenu" class="d-flex gap-2">
-        <button class="btn btn-outline-light btn-sm" onclick="openModal('login')">
+        <button class="btn btn-light btn-sm fw-bold d-none d-md-inline-flex" onclick="openModal('login')">
           <i class="fas fa-sign-in-alt me-1"></i>Giriş
-        </button>
-        <button class="btn btn-light btn-sm fw-bold d-none d-md-inline-flex" onclick="openModal('register')">
-          <i class="fas fa-user-plus me-1"></i>Kayıt
         </button>
       </div>
 
       <!-- Giriş yapıldı -->
       <div id="userMenu" class="d-none align-items-center gap-2">
         <!-- Kullanıcı adı butonu -->
-        <button class="btn btn-light btn-sm fw-bold d-flex align-items-center gap-1" onclick="openSidebar()" style="border-radius:20px;padding:6px 14px">
+        <button class="btn btn-light btn-sm fw-bold d-flex align-items-center gap-1" onclick="showProfil()" style="border-radius:20px;padding:6px 14px">
           <i class="fas fa-fire" style="color:#f97316"></i>
-          <span id="userName">Kullanıcı</span>
+          <span id="userName" data-no-auto-translate="1">Kullanıcı</span>
         </button>
         <!-- Randevu Al -->
         <button class="btn btn-light btn-sm fw-bold d-none d-md-inline-flex" onclick="openModal('randevu')">
@@ -149,31 +161,96 @@
     </div>
   </div>
 </nav>
+<!-- NAV FILTER WIZARD -->
+<div id="navFilterWizard" class="nav-filter-wizard">
+  <div class="nav-filter-wizard-overlay" onclick="closeNavFilterWizard()"></div>
+  <div class="nav-filter-wizard-panel mini-filter-panel">
+    <button class="nav-filter-wizard-close" type="button" onclick="closeNavFilterWizard()">&times;</button>
 
+    <div class="adv-top">
+      <div class="adv-top-left">
+        <span>Ara ve Kesfet</span>
+        <span>Isletme ve hizmetleri filtrele</span>
+      </div>
+      <div class="adv-pill-tabs" role="tablist" aria-label="Filtre tipi">
+        <button type="button" class="adv-pill-tab active" onclick="setAdvancedTypeTab('', this)">Tumu</button>
+        <button type="button" class="adv-pill-tab" onclick="setAdvancedTypeTab('business', this)">Isletme</button>
+        <button type="button" class="adv-pill-tab" onclick="setAdvancedTypeTab('service', this)">Hizmet</button>
+      </div>
+    </div>
 
-<!-- ══════════════════════════════════
-     HERO
-══════════════════════════════════ -->
+    <select id="advType" class="d-none" onchange="onAdvancedTypeChange()">
+      <option value="">Tumu</option>
+      <option value="business">Isletme</option>
+      <option value="service">Hizmet</option>
+    </select>
+
+    <div class="adv-filter-grid">
+      <div class="adv-fgroup">
+        <div class="adv-fgroup-label">Il</div>
+        <select id="advCity" class="form-select" onchange="onAdvancedCityChange()">
+          <option value="">Seciniz</option>
+        </select>
+      </div>
+
+      <div class="adv-fgroup">
+        <div class="adv-fgroup-label">Ilce</div>
+        <select id="advDistrict" class="form-select" disabled>
+          <option value="">Seciniz</option>
+        </select>
+      </div>
+
+      <div class="adv-fgroup d-none" id="advServiceGroup">
+        <div class="adv-fgroup-label">Hizmet Turu</div>
+        <select id="advService" class="form-select">
+          <option value="">Tumu</option>
+        </select>
+      </div>
+
+      <div class="adv-fgroup d-none" id="advPriceGroup">
+        <div class="adv-fgroup-label">Fiyat Araligi (TL)</div>
+        <div class="adv-price-pair">
+          <input id="advMinPrice" class="form-control" type="number" min="0" step="10" placeholder="Min">
+          <input id="advMaxPrice" class="form-control" type="number" min="0" step="10" placeholder="Max">
+        </div>
+      </div>
+    </div>
+
+    <div class="adv-bottom">
+      <div class="adv-active-filters" id="advChipList">
+        <span class="adv-af-label" id="advChipLabel" style="display:none">Aktif:</span>
+      </div>
+      <div class="adv-btn-row">
+        <button type="button" class="adv-btn-ghost" onclick="clearAdvancedFilters()">Temizle</button>
+        <button type="button" class="mini-filter-btn" onclick="applyAdvancedFilters()">
+          <i class="fas fa-filter me-1"></i>Filtreyi Uygula
+        </button>
+      </div>
+    </div>
+
+    <div id="advFilterResult" class="mini-filter-result"></div>
+  </div>
+</div>
+
 <section class="hero">
   <div class="container">
     <div class="row align-items-center g-4">
       <div class="col-lg-7">
-        <div class="hero-badge"><i class="fas fa-star"></i> Profesyonel Hizmet</div>
-        <h1>Randevunuzu<br><span>Kolayca Alın</span></h1>
-        <p>Berber ve epilasyon merkezlerinde uzman kadromuzla en uygun zamanda randevu alın.</p>
-        <div class="d-flex gap-3 flex-wrap mb-4">
-          <button class="btn btn-light fw-bold px-4" onclick="openModal('randevu')">
-            <i class="fas fa-calendar-plus me-2"></i>Hemen Randevu Al
-          </button>
-          <a href="#isletmeler" class="btn btn-outline-light px-4">
-            <i class="fas fa-store me-2"></i>İşletmeleri Gör
-          </a>
+        <h1>MBX BARBER<br><span>&amp; BEAUTY</span></h1>
+        <p>MBX BARBER &amp; BEAUTY ile berber ve güzellik dünyasında uzman kadromuzla en uygun zamanda randevu alın.</p>
+        <div class="hero-actions mb-4">
+          <span class="hero-action hero-deco-btn" aria-hidden="true">
+            <i class="fas fa-calendar-plus me-2"></i><span data-lang="heroBtn1">Hemen Randevu Al</span>
+          </span>
+          <span class="hero-action hero-deco-btn" aria-hidden="true">
+            <i class="fas fa-store me-2"></i><span data-lang="heroBtn2">İşletmeleri Gör</span>
+          </span>
         </div>
         <div class="d-flex gap-2">
           <div class="hero-stat"><span class="num" id="statIsletme">–</span><span class="lbl">İşletme</span></div>
-          <div style="width:1px;background:rgba(255,255,255,.2)"></div>
+          <div class="hero-stat-divider"></div>
           <div class="hero-stat"><span class="num" id="statHizmet">–</span><span class="lbl">Hizmet</span></div>
-          <div style="width:1px;background:rgba(255,255,255,.2)"></div>
+          <div class="hero-stat-divider"></div>
           <div class="hero-stat"><span class="num" id="statCalisan">–</span><span class="lbl">Uzman</span></div>
         </div>
       </div>
@@ -184,8 +261,8 @@
               <i class="fas fa-scissors" style="color:#fff"></i>
             </div>
             <div>
-              <span class="hc-title">Saç Kesimi</span>
-              <span class="hc-sub">30 dk • 150 ₺</span>
+              <span class="hc-title" id="heroCard1Title">Saç Kesimi</span>
+              <span class="hc-sub" id="heroCard1Sub">30 dk • 150 ₺</span>
             </div>
           </div>
           <div class="hero-card ms-4">
@@ -193,8 +270,8 @@
               <i class="fas fa-spa" style="color:#fff"></i>
             </div>
             <div>
-              <span class="hc-title">Epilasyon</span>
-              <span class="hc-sub">45 dk • 300 ₺</span>
+              <span class="hc-title" id="heroCard2Title">Epilasyon</span>
+              <span class="hc-sub" id="heroCard2Sub">45 dk • 300 ₺</span>
             </div>
           </div>
           <div class="hero-card">
@@ -202,8 +279,8 @@
               <i class="fas fa-check-circle" style="color:#fff"></i>
             </div>
             <div>
-              <span class="hc-title">Randevu Onaylandı!</span>
-              <span class="hc-sub">Yarın 14:00</span>
+              <span class="hc-title" id="heroCard3Title">Randevu Onaylandı!</span>
+              <span class="hc-sub" id="heroCard3Sub">Yarın 14:00</span>
             </div>
           </div>
         </div>
@@ -230,7 +307,12 @@
         <button class="filter-btn" data-filter="berber" onclick="filterIsletmeler('berber',this)"><i class="fas fa-cut me-1"></i>Berber</button>
         <button class="filter-btn" data-filter="epilasyon" onclick="filterIsletmeler('epilasyon',this)"><i class="fas fa-spa me-1"></i>Epilasyon</button>
       </div>
-      <div class="input-group" style="max-width:260px">
+      <div class="input-group" style="max-width:320px">
+        <select class="form-select form-select-sm" id="isletmeAramaFilter" style="max-width:120px" onchange="araIsletme(document.getElementById('isletmeArama').value)">
+          <option value="all">Tümü</option>
+          <option value="ad">Ad</option>
+          <option value="adres">Adres</option>
+        </select>
         <span class="input-group-text"><i class="fas fa-search"></i></span>
         <input type="text" class="form-control form-control-sm" id="isletmeArama" placeholder="İşletme ara..." oninput="araIsletme(this.value)">
       </div>
@@ -259,7 +341,12 @@
         <button class="filter-btn" data-filter="berber" onclick="filterHizmetler('berber',this)">✂️ Berber</button>
         <button class="filter-btn" data-filter="epilasyon" onclick="filterHizmetler('epilasyon',this)">✨ Epilasyon</button>
       </div>
-      <div class="input-group" style="max-width:260px">
+      <div class="input-group" style="max-width:320px">
+        <select class="form-select form-select-sm" id="hizmetAramaFilter" style="max-width:120px" onchange="araHizmet(document.getElementById('hizmetArama').value)">
+          <option value="all">Tümü</option>
+          <option value="ad">Hizmet</option>
+          <option value="isletme">İşletme</option>
+        </select>
         <span class="input-group-text"><i class="fas fa-search"></i></span>
         <input type="text" class="form-control form-control-sm" id="hizmetArama" placeholder="Hizmet ara..." oninput="araHizmet(this.value)">
       </div>
@@ -270,6 +357,7 @@
     </div>
   </div>
 </section>
+</div>
 
 <!-- ══════════════════════════════════
      MODALLER (Bootstrap Modal)
@@ -299,7 +387,12 @@
           </div>
           <div class="mb-3">
             <label class="form-label small fw-semibold">Şifre</label>
-            <input type="password" class="form-control" id="loginSifre" placeholder="••••••" onkeydown="if(event.key==='Enter')handleLogin()">
+            <div class="password-wrap">
+              <input type="password" class="form-control" id="loginSifre" placeholder="••••••" onkeydown="if(event.key==='Enter')handleLogin()">
+              <button type="button" class="password-toggle" onclick="togglePassword('loginSifre', this)" aria-label="Şifreyi göster/gizle">
+                <i class="fas fa-eye"></i>
+              </button>
+            </div>
           </div>
           <button class="btn w-100 fw-bold text-white" style="background:linear-gradient(135deg,#0f2b3d,#1b4a6b)" onclick="handleLogin()">
             <i class="fas fa-sign-in-alt me-2"></i>Giriş Yap
@@ -361,36 +454,36 @@
               <input type="text" class="form-control" id="rMusteriAd">
             </div>
             <div class="col-6">
-              <label class="form-label small fw-semibold">Telefon</label>
+              <label class="form-label small fw-semibold" data-lang="rdvTelefonLabel">Telefon</label>
               <input type="tel" class="form-control" id="rMusteriTelefon" placeholder="5XX XXX XX XX">
             </div>
           </div>
           <div id="rIsletmeBilgi" class="d-none mb-2"></div>
           <div class="mb-2 d-none" id="rHizmetRow">
-            <label class="form-label small fw-semibold"><i class="fas fa-cut me-1 text-muted"></i>Hizmet Seçin</label>
+            <label class="form-label small fw-semibold"><i class="fas fa-cut me-1 text-muted"></i><span data-lang="rdvServiceLabel">Hizmet Seçin</span></label>
             <select class="form-select" id="rHizmet" onchange="onHizmetSecildi()">
               <option value="">-- Hizmet seçiniz --</option>
             </select>
           </div>
           <div id="rHizmetBilgi" class="d-none mb-2"></div>
           <div class="mb-2 d-none" id="rCalisanRow">
-            <label class="form-label small fw-semibold"><i class="fas fa-user-tie me-1 text-muted"></i>Uzman Seçin</label>
+            <label class="form-label small fw-semibold"><i class="fas fa-user-tie me-1 text-muted"></i><span data-lang="rdvStaffLabel">Uzman Seçin</span></label>
             <select class="form-select" id="rCalisan" onchange="onCalisanSecildi()">
               <option value="">-- Uzman seçiniz --</option>
             </select>
           </div>
           <div class="mb-2 d-none" id="rTarihRow">
-            <label class="form-label small fw-semibold"><i class="fas fa-calendar me-1 text-muted"></i>Tarih Seçin</label>
-            <input type="date" class="form-control" id="rTarih" onchange="onTarihSecildi()">
+            <label class="form-label small fw-semibold"><i class="fas fa-calendar me-1 text-muted"></i><span data-lang="rdvDateLabel">Tarih Seçin</span></label>
+            <input type="text" class="form-control" id="rTarih" onchange="onTarihSecildi()" autocomplete="off" readonly>
           </div>
           <div class="mb-2 d-none" id="rSaatRow">
-            <label class="form-label small fw-semibold"><i class="fas fa-clock me-1 text-muted"></i>Saat Seçin</label>
+            <label class="form-label small fw-semibold"><i class="fas fa-clock me-1 text-muted"></i><span data-lang="rdvTimeLabel">Saat Seçin</span></label>
             <div id="rSaatSlots" class="saat-slots"></div>
             <input type="hidden" id="rSaat">
           </div>
           <div class="mb-2">
-            <label class="form-label small fw-semibold"><i class="fas fa-sticky-note me-1 text-muted"></i>Not (isteğe bağlı)</label>
-            <textarea class="form-control" id="rNotlar" rows="2" placeholder="Eklemek istediğiniz notlar..."></textarea>
+            <label class="form-label small fw-semibold"><i class="fas fa-sticky-note me-1 text-muted"></i><span data-lang="rdvNoteLabel">Not (isteğe bağlı)</span></label>
+            <textarea class="form-control" id="rNotlar" rows="2" data-lang-ph="rdvNotePlaceholder" placeholder="Eklemek istediğiniz notlar..."></textarea>
           </div>
           <div id="rOzet" class="d-none"></div>
           <button class="btn w-100 fw-bold text-white mt-2 d-none" style="background:linear-gradient(135deg,#7c3aed,#a78bfa)" onclick="submitAppointment()" id="rSubmitBtn">
@@ -521,7 +614,22 @@
 <!-- Toast Container -->
 <div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index:9999" id="toastContainer"></div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+        onerror="this.onerror=null;this.src='https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/js/bootstrap.bundle.min.js';"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.js"
+        onerror="this.onerror=null;this.src='https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.js';"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/tr.js"
+        onerror="this.onerror=null;this.src='https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/l10n/tr.min.js';"></script>
+<script src="{{ url_for('static', filename='js/app.js', v=asset_v|default(0)) }}"></script>
+<script>
+if (window.location.protocol === 'file:') {
+  var jsFallback = document.createElement('script');
+  jsFallback.src = '../static/js/app.js?v=' + Date.now();
+  document.body.appendChild(jsFallback);
+}
+</script>
 </body>
 </html>
+
+
+

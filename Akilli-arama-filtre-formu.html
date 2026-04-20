@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trimmly — Navbar Search v A</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --color-background-primary: #ffffff;
+  --color-background-secondary: #f5f5f4;
+  --color-background-tertiary: #eceae6;
+  --color-text-primary: #1c1917;
+  --color-text-secondary: #78716c;
+  --color-text-tertiary: #a8a29e;
+  --color-border-tertiary: rgba(28,25,23,0.12);
+  --color-border-secondary: rgba(28,25,23,0.25);
+  --color-border-primary: rgba(28,25,23,0.4);
+  --border-radius-md: 8px;
+  --border-radius-lg: 12px;
+  --font-sans: 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-background-primary: #1c1917;
+    --color-background-secondary: #292524;
+    --color-background-tertiary: #141210;
+    --color-text-primary: #fafaf9;
+    --color-text-secondary: #a8a29e;
+    --color-text-tertiary: #78716c;
+    --color-border-tertiary: rgba(250,250,249,0.1);
+    --color-border-secondary: rgba(250,250,249,0.2);
+    --color-border-primary: rgba(250,250,249,0.35);
+  }
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--color-background-tertiary);
+  min-height: 100vh;
+}
+
+.navbar {
+  background: var(--color-background-primary);
+  border-bottom: 0.5px solid var(--color-border-tertiary);
+  padding: 0 24px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.nb-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 54px;
+}
+
+.logo { display: flex; align-items: center; gap: 7px; flex-shrink: 0; text-decoration: none; }
+.logo-mark { width: 28px; height: 28px; border-radius: 7px; background: var(--color-text-primary); display: flex; align-items: center; justify-content: center; }
+.logo-mark svg { width: 14px; height: 14px; color: var(--color-background-primary); }
+.logo-text { font-size: 14px; font-weight: 500; color: var(--color-text-primary); }
+.logo-sub { font-size: 11px; color: var(--color-text-tertiary); margin-top: 1px; }
+
+.search-always { flex: 1; max-width: 400px; position: relative; }
+.search-always input {
+  width: 100%; height: 34px; padding: 0 12px 0 34px; font-size: 13px;
+  border: 0.5px solid var(--color-border-secondary);
+  border-radius: var(--border-radius-md);
+  background: var(--color-background-secondary);
+  color: var(--color-text-primary); outline: none;
+  transition: border-color .15s, background .15s;
+  font-family: var(--font-sans);
+}
+.search-always input:focus {
+  border-color: var(--color-border-primary);
+  background: var(--color-background-primary);
+  box-shadow: 0 0 0 3px rgba(120,113,108,0.1);
+}
+.search-always input::placeholder { color: var(--color-text-tertiary); }
+.si { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); width: 14px; height: 14px; color: var(--color-text-tertiary); pointer-events: none; }
+
+.nb-nav { display: flex; align-items: center; gap: 2px; margin-left: auto; }
+.nb-link {
+  height: 30px; padding: 0 10px; border: none; background: none;
+  font-size: 13px; color: var(--color-text-secondary); cursor: pointer;
+  border-radius: var(--border-radius-md); font-family: var(--font-sans);
+  transition: background .15s, color .15s; white-space: nowrap;
+}
+.nb-link:hover, .nb-link.active { background: var(--color-background-secondary); color: var(--color-text-primary); }
+.nb-btn {
+  height: 30px; padding: 0 12px; border: 0.5px solid var(--color-border-secondary);
+  background: none; font-size: 13px; color: var(--color-text-primary); cursor: pointer;
+  border-radius: var(--border-radius-md); font-family: var(--font-sans); font-weight: 500;
+  transition: background .15s; white-space: nowrap;
+}
+.nb-btn:hover { background: var(--color-background-secondary); }
+.nb-avatar {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: var(--color-background-secondary); border: 0.5px solid var(--color-border-secondary);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 500; color: var(--color-text-secondary); cursor: pointer; flex-shrink: 0;
+}
+
+.filter-bar {
+  border-top: 0.5px solid var(--color-border-tertiary);
+  padding: 8px 0;
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  background: var(--color-background-primary);
+}
+
+.cat-pill {
+  height: 26px; padding: 0 10px; border-radius: 999px;
+  border: 0.5px solid var(--color-border-tertiary); background: none;
+  font-size: 12px; font-weight: 500; cursor: pointer; color: var(--color-text-secondary);
+  transition: all .15s; font-family: var(--font-sans);
+  display: flex; align-items: center; gap: 5px; white-space: nowrap;
+}
+.cat-pill svg { width: 12px; height: 12px; }
+.cat-pill:hover { background: var(--color-background-secondary); }
+.cat-pill.on { background: var(--color-text-primary); color: var(--color-background-primary); border-color: var(--color-text-primary); }
+
+.vdivider { width: 0.5px; height: 16px; background: var(--color-border-tertiary); flex-shrink: 0; }
+
+.fsel {
+  height: 26px; padding: 0 8px; font-size: 12px;
+  border-radius: var(--border-radius-md); border: 0.5px solid var(--color-border-tertiary);
+  background: var(--color-background-secondary); color: var(--color-text-secondary);
+  outline: none; font-family: var(--font-sans); cursor: pointer;
+}
+.fsel:focus { border-color: var(--color-border-primary); }
+
+.chk-item { display: flex; align-items: center; gap: 5px; cursor: pointer; white-space: nowrap; }
+.chk-item input { width: 13px; height: 13px; cursor: pointer; accent-color: var(--color-text-primary); }
+.chk-item span { font-size: 12px; color: var(--color-text-secondary); }
+
+.filter-ara {
+  height: 26px; padding: 0 14px; border-radius: var(--border-radius-md);
+  border: none; background: var(--color-text-primary); font-size: 12px;
+  color: var(--color-background-primary); cursor: pointer; font-family: var(--font-sans);
+  font-weight: 500; margin-left: auto; white-space: nowrap;
+  display: flex; align-items: center; gap: 5px; transition: opacity .15s;
+}
+.filter-ara:hover { opacity: .85; }
+.filter-ara:active { transform: scale(0.98); }
+.filter-ara svg { width: 12px; height: 12px; }
+
+.page-content { padding: 28px 24px; max-width: 1100px; margin: 0 auto; }
+.section-label {
+  font-size: 11px; font-weight: 500; color: var(--color-text-tertiary);
+  letter-spacing: .04em; text-transform: uppercase; margin-bottom: 12px;
+}
+.result-info { font-size: 13px; color: var(--color-text-secondary); margin-bottom: 16px; }
+
+.result-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+.rcard {
+  background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary);
+  border-radius: var(--border-radius-lg); padding: 14px; cursor: pointer;
+  transition: border-color .15s;
+}
+.rcard:hover { border-color: var(--color-border-secondary); }
+.rcard-cat { font-size: 10px; color: var(--color-text-tertiary); font-weight: 500; letter-spacing: .04em; text-transform: uppercase; margin-bottom: 6px; }
+.rcard-name { font-size: 13px; font-weight: 500; color: var(--color-text-primary); margin-bottom: 3px; }
+.rcard-loc { font-size: 11px; color: var(--color-text-secondary); }
+.rcard-meta { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; }
+.rcard-rating { font-size: 12px; color: var(--color-text-primary); font-weight: 500; }
+.rcard-price { font-size: 11px; color: var(--color-text-tertiary); }
+
+.empty { text-align: center; padding: 40px 0; color: var(--color-text-tertiary); font-size: 13px; }
+</style>
+</head>
+<body>
+
+<div class="navbar">
+  <div class="nb-top">
+    <div class="logo">
+      <div class="logo-mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+          <path d="M6 3v12"/>
+          <path d="M18 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>
+          <path d="M6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>
+          <path d="M15 6l-9 9"/>
+        </svg>
+      </div>
+      <div>
+        <div class="logo-text">Trimmly</div>
+        <div class="logo-sub">Berber &amp; Epilasyon</div>
+      </div>
+    </div>
+
+    <div class="search-always">
+      <svg class="si" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+      </svg>
+      <input id="qInput" placeholder="Berber veya hizmet ara…" onkeydown="if(event.key==='Enter') doSearch()">
+    </div>
+
+    <div class="nb-nav">
+      <button class="nb-link active">Keşfet</button>
+      <button class="nb-link">Randevularım</button>
+      <button class="nb-link">Favoriler</button>
+      <button class="nb-btn">Giriş yap</button>
+      <div class="nb-avatar">AK</div>
+    </div>
+  </div>
+
+  <div class="filter-bar">
+    <button class="cat-pill on" onclick="toggleCat(this,'all')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+      Tümü
+    </button>
+    <button class="cat-pill" onclick="toggleCat(this,'berber')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v12"/><path d="M18 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M15 6l-9 9"/></svg>
+      Berber
+    </button>
+    <button class="cat-pill" onclick="toggleCat(this,'epilasyon')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      Epilasyon
+    </button>
+    <div class="vdivider"></div>
+    <select class="fsel" id="cityFilter">
+      <option value="">Tüm iller</option>
+      <option>İstanbul</option>
+      <option>Ankara</option>
+      <option>İzmir</option>
+      <option>Bursa</option>
+      <option>Erzurum</option>
+      <option>Antalya</option>
+    </select>
+    <select class="fsel" id="svcFilter">
+      <option value="">Tüm hizmetler</option>
+      <option>Saç Kesimi</option>
+      <option>Sakal Tıraşı</option>
+      <option>Saç &amp; Sakal</option>
+      <option>Çocuk Kesimi</option>
+      <option>Lazer Epilasyon</option>
+      <option>IPL Epilasyon</option>
+      <option>Cilt Bakımı</option>
+      <option>Ağda</option>
+    </select>
+    <select class="fsel" id="ratingFilter">
+      <option value="">Puan: Tümü</option>
+      <option value="4.5">4.5 ve üzeri</option>
+      <option value="4">4.0 ve üzeri</option>
+      <option value="3.5">3.5 ve üzeri</option>
+    </select>
+    <div class="vdivider"></div>
+    <label class="chk-item"><input type="checkbox" id="chkOpen"> <span>Şu an açık</span></label>
+    <label class="chk-item"><input type="checkbox" id="chkOnline"> <span>Online randevu</span></label>
+    <label class="chk-item"><input type="checkbox" id="chkHome"> <span>Eve servis</span></label>
+    <button class="filter-ara" onclick="doSearch()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+      Ara
+    </button>
+  </div>
+</div>
+
+<div class="page-content">
+  <div class="section-label" id="sectionLabel">Önerilen işletmeler</div>
+  <div class="result-cards" id="cardGrid"></div>
+</div>
+
+<script>
+const mockData = [
+  { cat: "Berber", catKey: "berber", name: "Maestro Kuaför", loc: "Kadıköy, İstanbul", rating: 4.9, price: "₺80+", open: true, online: true, home: false },
+  { cat: "Berber", catKey: "berber", name: "Classic Barber Co.", loc: "Çankaya, Ankara", rating: 4.7, price: "₺60+", open: true, online: false, home: false },
+  { cat: "Berber", catKey: "berber", name: "Urban Barber", loc: "Beşiktaş, İstanbul", rating: 4.8, price: "₺90+", open: false, online: true, home: false },
+  { cat: "Berber", catKey: "berber", name: "Gentleman's Cut", loc: "Osmangazi, Bursa", rating: 4.6, price: "₺70+", open: true, online: true, home: false },
+  { cat: "Epilasyon", catKey: "epilasyon", name: "LaserPlus Merkezi", loc: "Konak, İzmir", rating: 4.8, price: "₺150+", open: true, online: true, home: false },
+  { cat: "Epilasyon", catKey: "epilasyon", name: "Glow Estetik", loc: "Nilüfer, Bursa", rating: 4.6, price: "₺120+", open: false, online: false, home: true },
+  { cat: "Epilasyon", catKey: "epilasyon", name: "Pürüzsüz Klinik", loc: "Şişli, İstanbul", rating: 4.5, price: "₺200+", open: true, online: true, home: false },
+  { cat: "Epilasyon", catKey: "epilasyon", name: "Silky Skin Studio", loc: "Keçiören, Ankara", rating: 4.7, price: "₺130+", open: true, online: false, home: true },
+]
+
+let activeCat = "all"
+
+function toggleCat(el, cat) {
+  document.querySelectorAll(".cat-pill").forEach(p => p.classList.remove("on"))
+  el.classList.add("on")
+  activeCat = cat
+}
+
+function renderCards(data) {
+  const grid = document.getElementById("cardGrid")
+  if (!data.length) {
+    grid.innerHTML = '<div class="empty">Sonuç bulunamadı. Filtreleri değiştirmeyi deneyin.</div>'
+    return
+  }
+  grid.innerHTML = data.map(d => `
+    <div class="rcard">
+      <div class="rcard-cat">${d.cat}</div>
+      <div class="rcard-name">${d.name}</div>
+      <div class="rcard-loc">${d.loc}</div>
+      <div class="rcard-meta">
+        <span class="rcard-rating">★ ${d.rating}</span>
+        <span class="rcard-price">${d.price}</span>
+      </div>
+    </div>`).join("")
+}
+
+function doSearch() {
+  const q = document.getElementById("qInput").value.trim().toLowerCase()
+  const city = document.getElementById("cityFilter").value
+  const rating = parseFloat(document.getElementById("ratingFilter").value) || 0
+  const onlyOpen = document.getElementById("chkOpen").checked
+  const onlyOnline = document.getElementById("chkOnline").checked
+  const onlyHome = document.getElementById("chkHome").checked
+
+  let filtered = mockData.filter(d => {
+    if (activeCat !== "all" && d.catKey !== activeCat) return false
+    if (q && !d.name.toLowerCase().includes(q) && !d.cat.toLowerCase().includes(q) && !d.loc.toLowerCase().includes(q)) return false
+    if (city && !d.loc.includes(city)) return false
+    if (rating && d.rating < rating) return false
+    if (onlyOpen && !d.open) return false
+    if (onlyOnline && !d.online) return false
+    if (onlyHome && !d.home) return false
+    return true
+  })
+
+  document.getElementById("sectionLabel").textContent = filtered.length + " işletme bulundu"
+  renderCards(filtered)
+}
+
+renderCards(mockData)
+</script>
+</body>
+</html>

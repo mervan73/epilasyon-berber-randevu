@@ -1,11 +1,22 @@
+﻿# -*- coding: utf-8 -*-
 from flask import Flask, render_template, request, jsonify, session, redirect
 from flask_cors import CORS
+import os
 import pyodbc, re, socket
-from functools import wraps
+from translation_service import TranslationService
 
 app = Flask(__name__)
 app.secret_key = 'berber-randevu-2024-xyz'
 CORS(app)
+app.config['TEMPLATES_AUTO_RELOAD'] = True
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
+
+@app.after_request
+def add_no_cache_headers(resp):
+    resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    resp.headers['Pragma'] = 'no-cache'
+    resp.headers['Expires'] = '0'
+    return resp
 
 SERVER   = 'DESKTOP-T20P6DA\\SQLEXPRESS'
 DATABASE = 'BerberRandevu'
@@ -14,29 +25,34 @@ CONN_STR = f'DRIVER={{SQL Server}};SERVER={SERVER};DATABASE={DATABASE};Trusted_C
 def db():
     return pyodbc.connect(CONN_STR, timeout=10)
 
-# ══════════════════════════════════════════════════════════════════
-# VERİTABANI HAZIRLIK
-# ══════════════════════════════════════════════════════════════════
+translation_service = TranslationService(db)
+
+# ??????????????????????????????????????????????????????????????????
+# VER?TABANI HAZIRLIK
+# ??????????????????????????????????????????????????????????????????
 def init_db():
     con = db()
     cur = con.cursor()
 
-    # ── ADIM 1: Mevcut tüm FK constraint'leri kaldır ─────────────
-    try:
-        cur.execute("""
-            DECLARE @sql NVARCHAR(MAX) = ''
-            SELECT @sql = @sql + 'ALTER TABLE ' + OBJECT_NAME(parent_object_id)
-                        + ' DROP CONSTRAINT ' + name + '; '
-            FROM sys.foreign_keys
-            WHERE OBJECT_NAME(parent_object_id) IN ('calisma_saatleri','tatil_gunleri')
-            IF @sql <> '' EXEC sp_executesql @sql
-        """)
-        con.commit()
-        print("✅ FK constraint'ler temizlendi")
-    except Exception as e:
-        print(f"  FK temizle: {e}")
-        try: con.rollback()
-        except: pass
+    # ?? ADIM 1: FK onar?m? (normalde kapal?) ??????????????????????
+    # Her a??l??ta FK DROP i?lemi yava? oldu?u i?in varsay?lan olarak kapat?ld?.
+    db_repair = (os.getenv('APP_DB_REPAIR', '0').strip().lower() in ('1', 'true', 'yes', 'on'))
+    if db_repair:
+        try:
+            cur.execute("""
+                DECLARE @sql NVARCHAR(MAX) = ''
+                SELECT @sql = @sql + 'ALTER TABLE ' + OBJECT_NAME(parent_object_id)
+                            + ' DROP CONSTRAINT ' + name + '; '
+                FROM sys.foreign_keys
+                WHERE OBJECT_NAME(parent_object_id) IN ('calisma_saatleri','tatil_gunleri')
+                IF @sql <> '' EXEC sp_executesql @sql
+            """)
+            con.commit()
+            print("? FK constraint'ler temizlendi")
+        except Exception as e:
+            print(f"  FK temizle: {e}")
+            try: con.rollback()
+            except: pass
 
     def tablo_var(ad):
         cur.execute("SELECT COUNT(*) FROM sysobjects WHERE name=? AND xtype='U'", ad)
@@ -46,7 +62,7 @@ def init_db():
         cur.execute("SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME=? AND COLUMN_NAME=?", tablo, sutun)
         return cur.fetchone()[0] > 0
 
-    # ── ADIM 2: Tablolar ──────────────────────────────────────────
+    # ?? ADIM 2: Tablolar ??????????????????????????????????????????
 
     if not tablo_var('kullanicilar'):
         cur.execute("""
@@ -56,11 +72,8 @@ def init_db():
                 email        NVARCHAR(100) NOT NULL UNIQUE,
                 sifre        NVARCHAR(200) NOT NULL,
                 telefon      NVARCHAR(20)  NULL,
-                is_admin     BIT DEFAULT 0,
                 kayit_tarihi DATETIME DEFAULT GETDATE()
             )""")
-    if not sutun_var('kullanicilar', 'is_admin'):
-        cur.execute("ALTER TABLE kullanicilar ADD is_admin BIT DEFAULT 0")
     if not sutun_var('kullanicilar', 'telefon'):
         cur.execute("ALTER TABLE kullanicilar ADD telefon NVARCHAR(20) NULL")
 
@@ -80,6 +93,10 @@ def init_db():
         cur.execute("ALTER TABLE isletmeler ADD aktif BIT DEFAULT 1")
     if not sutun_var('isletmeler', 'aciklama'):
         cur.execute("ALTER TABLE isletmeler ADD aciklama NVARCHAR(MAX) NULL")
+    if not sutun_var('isletmeler', 'latitude'):
+        cur.execute("ALTER TABLE isletmeler ADD latitude FLOAT NULL")
+    if not sutun_var('isletmeler', 'longitude'):
+        cur.execute("ALTER TABLE isletmeler ADD longitude FLOAT NULL")
 
     if not tablo_var('hizmetler'):
         cur.execute("""
@@ -94,6 +111,8 @@ def init_db():
             )""")
     if not sutun_var('hizmetler', 'isletme_id'):
         cur.execute("ALTER TABLE hizmetler ADD isletme_id INT NULL")
+    if not sutun_var('hizmetler', 'ad_en'):
+        cur.execute("ALTER TABLE hizmetler ADD ad_en NVARCHAR(100) NULL")
     if not sutun_var('hizmetler', 'aktif'):
         cur.execute("ALTER TABLE hizmetler ADD aktif BIT DEFAULT 1")
 
@@ -129,7 +148,7 @@ def init_db():
                 olusturma_tarihi DATETIME DEFAULT GETDATE()
             )""")
 
-    # calisma_saatleri — KESİNLİKLE FK CONSTRAINT YOK
+    # calisma_saatleri ? KES?NL?KLE FK CONSTRAINT YOK
     if not tablo_var('calisma_saatleri'):
         cur.execute("""
             CREATE TABLE calisma_saatleri(
@@ -142,7 +161,7 @@ def init_db():
                 CONSTRAINT UQ_CS UNIQUE(isletme_id, gun_no)
             )""")
 
-    # tatil_gunleri — KESİNLİKLE FK CONSTRAINT YOK
+    # tatil_gunleri ? KES?NL?KLE FK CONSTRAINT YOK
     if not tablo_var('tatil_gunleri'):
         cur.execute("""
             CREATE TABLE tatil_gunleri(
@@ -155,24 +174,29 @@ def init_db():
 
     con.commit()
 
-    # ── ADIM 3: Eksik calisma_saatleri satırlarını tamamla ────────
+    # ?? ADIM 3: Eksik calisma_saatleri sat?rlar?n? toplu tamamla ????
     try:
-        cur.execute("SELECT id FROM isletmeler")
-        isletmeler = [r[0] for r in cur.fetchall()]
-        for iid in isletmeler:
-            for g in range(1, 8):
-                cur.execute("SELECT COUNT(*) FROM calisma_saatleri WHERE isletme_id=? AND gun_no=?", iid, g)
-                if cur.fetchone()[0] == 0:
-                    cur.execute(
-                        "INSERT INTO calisma_saatleri(isletme_id,gun_no,acilis,kapanis,kapali) VALUES(?,?,'09:00','19:00',?)",
-                        iid, g, 1 if g == 7 else 0)
+        cur.execute("""
+            ;WITH gunler AS (
+                SELECT 1 AS gun_no UNION ALL SELECT 2 UNION ALL SELECT 3
+                UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7
+            )
+            INSERT INTO calisma_saatleri(isletme_id, gun_no, acilis, kapanis, kapali)
+            SELECT i.id, g.gun_no, '09:00', '19:00',
+                   CASE WHEN g.gun_no = 7 THEN 1 ELSE 0 END
+            FROM isletmeler i
+            CROSS JOIN gunler g
+            LEFT JOIN calisma_saatleri cs
+              ON cs.isletme_id = i.id AND cs.gun_no = g.gun_no
+            WHERE cs.id IS NULL
+        """)
         con.commit()
     except Exception as e:
         print(f"  calisma_saatleri: {e}")
         try: con.rollback()
         except: pass
 
-    # ── ADIM 4: NULL aktif düzelt ─────────────────────────────────
+    # ?? ADIM 4: NULL aktif d?zelt ?????????????????????????????????
     try:
         cur.execute("UPDATE hizmetler  SET aktif=1 WHERE aktif IS NULL")
         cur.execute("UPDATE calisanlar SET aktif=1 WHERE aktif IS NULL")
@@ -181,42 +205,75 @@ def init_db():
     except: pass
 
     con.close()
-    print("✅ Veritabanı hazır")
+    print("Veritabanı hazır")
+    try:
+        translation_service.ensure_schema()
+    except Exception as ex:
+        print(f"Çeviri cache init hatası: {ex}")
 
 try:
     init_db()
 except Exception as ex:
-    print(f"⚠️ DB init: {ex}")
+    print(f"DB init hatası: {ex}")
 
-# ══════════════════════════════════════════════════════════════════
+@app.route('/api/translation-config')
+def translation_config():
+    try:
+        translation_service.ensure_schema()
+    except Exception:
+        pass
+    return jsonify(success=True, **translation_service.status())
+
+@app.route('/api/translate', methods=['POST'])
+def api_translate():
+    try:
+        try:
+            translation_service.ensure_schema()
+        except Exception:
+            pass
+        d = request.get_json(force=True, silent=True) or {}
+        texts = d.get('texts') or []
+        if isinstance(texts, str):
+            texts = [texts]
+        source_lang = (d.get('source_lang') or 'tr').strip().lower()
+        target_lang = (d.get('target_lang') or 'en').strip().lower()
+        fmt = (d.get('format') or 'text').strip().lower()
+        translated = translation_service.translate_batch(texts, source_lang=source_lang, target_lang=target_lang, fmt=fmt)
+        return jsonify(success=True, provider=translation_service.provider, translations=translated)
+    except Exception as ex:
+        return jsonify(success=False, message=str(ex)), 500
+
+# ??????????????????????????????????????????????????????????????????
 # SAYFALAR
-# ══════════════════════════════════════════════════════════════════
+# ??????????????????????????????????????????????????????????????????
 @app.route('/')
 def index():
-    return render_template('app.html')
+    try:
+        css_path = os.path.join(app.root_path, 'static', 'css', 'app.css')
+        js_path = os.path.join(app.root_path, 'static', 'js', 'app.js')
+        css_mtime = int(os.path.getmtime(css_path)) if os.path.exists(css_path) else 0
+        js_mtime = int(os.path.getmtime(js_path)) if os.path.exists(js_path) else 0
+        asset_v = max(css_mtime, js_mtime)
+    except Exception:
+        asset_v = 0
+    return render_template('app.html', asset_v=asset_v)
 
-@app.route('/admin-panel')
-def admin_panel():
-    if not session.get('is_admin'):
-        return redirect('/')
-    return render_template('admin_panel.html')
-
-# ══════════════════════════════════════════════════════════════════
+# ??????????????????????????????????????????????????????????????????
 # KULLANICI
-# ══════════════════════════════════════════════════════════════════
+# ??????????????????????????????????????????????????????????????????
 @app.route('/api/kayit', methods=['POST'])
 def kayit():
     try:
         d = request.json or {}
         if not d.get('ad') or not d.get('email') or not d.get('sifre'):
-            return jsonify({'success': False, 'message': 'Ad, email ve şifre zorunludur!'}), 400
+            return jsonify({'success': False, 'message': 'Ad, e-posta ve şifre zorunludur!'}), 400
         if len(d['sifre']) < 6:
-            return jsonify({'success': False, 'message': 'Şifre en az 6 karakter!'}), 400
+            return jsonify({'success': False, 'message': 'Şifre en az 6 karakter olmalıdır!'}), 400
         con = db(); cur = con.cursor()
         cur.execute("SELECT id FROM kullanicilar WHERE email=?", d['email'])
         if cur.fetchone():
             con.close()
-            return jsonify({'success': False, 'message': 'Bu email zaten kayıtlı!'}), 400
+            return jsonify({'success': False, 'message': 'Bu e-posta zaten kayıtlı!'}), 400
         cur.execute("INSERT INTO kullanicilar(ad,email,sifre,telefon) VALUES(?,?,?,?)",
                     d['ad'], d['email'], d['sifre'], d.get('telefon', ''))
         con.commit(); con.close()
@@ -230,19 +287,18 @@ def giris():
         d = request.json or {}
         con = db(); cur = con.cursor()
         cur.execute("""
-            SELECT id, ad, email, ISNULL(telefon,''), ISNULL(is_admin,0)
+            SELECT id, ad, email, ISNULL(telefon,'')
             FROM kullanicilar WHERE email=? AND sifre=?
         """, d.get('email', ''), d.get('sifre', ''))
         row = cur.fetchone(); con.close()
         if not row:
-            return jsonify({'success': False, 'message': '❌ Email veya şifre hatalı!'}), 401
+            return jsonify({'success': False, 'message': '❌ E-posta veya şifre hatalı!'}), 401
         session['user_id']    = row[0]
         session['user_name']  = row[1]
         session['user_email'] = row[2]
-        session['is_admin']   = bool(row[4])
         return jsonify({'success': True, 'message': '✅ Giriş başarılı!',
                         'user': {'id': row[0], 'ad': row[1], 'email': row[2],
-                                 'telefon': row[3], 'is_admin': bool(row[4])}})
+                                 'telefon': row[3]}})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
 
@@ -255,10 +311,14 @@ def cikis():
 def oturum():
     if 'user_id' not in session:
         return jsonify({'success': False}), 401
-    return jsonify({'success': True, 'user': {
-        'id': session['user_id'], 'ad': session['user_name'],
-        'email': session['user_email'], 'is_admin': session.get('is_admin', False)
-    }})
+    return jsonify({
+        'success': True,
+        'user': {
+            'id': session['user_id'],
+            'ad': session.get('user_name', ''),
+            'email': session.get('user_email', '')
+        }
+    })
 
 @app.route('/api/kullanici-guncelle', methods=['POST'])
 def kullanici_guncelle():
@@ -271,11 +331,11 @@ def kullanici_guncelle():
     if not ad or not email:
         return jsonify({'success': False, 'message': 'Ad ve e-posta zorunludur!'}), 400
     if sifre and len(sifre) < 6:
-        return jsonify({'success': False, 'message': 'Şifre en az 6 karakter!'}), 400
+        return jsonify({'success': False, 'message': 'Şifre en az 6 karakter olmalıdır!'}), 400
     try:
         con = db(); cur = con.cursor()
         uid = session['user_id']
-        # Email başkası tarafından kullanılıyor mu?
+        # E-posta başkası tarafından kullanılıyor mu?
         cur.execute("SELECT id FROM kullanicilar WHERE email=? AND id!=?", email, uid)
         if cur.fetchone():
             return jsonify({'success': False, 'message': 'Bu e-posta başka bir hesapta kullanılıyor!'}), 409
@@ -290,20 +350,51 @@ def kullanici_guncelle():
     except Exception as ex:
         return jsonify({'success': False, 'message': str(ex)}), 500
 
-# ══════════════════════════════════════════════════════════════════
+# ??????????????????????????????????????????????????????????????????
 # PUBLIC API
-# ══════════════════════════════════════════════════════════════════
+# ??????????????????????????????????????????????????????????????????
 @app.route('/api/public/isletmeler')
 def public_isletmeler():
     try:
         con = db(); cur = con.cursor()
         cur.execute("""
-            SELECT id, ad, tur, ISNULL(adres,''), ISNULL(telefon,''), ISNULL(aciklama,'')
-            FROM isletmeler WHERE ISNULL(aktif,1)=1 ORDER BY kayit_tarihi DESC
+            SELECT
+                i.id,
+                i.ad,
+                i.tur,
+                ISNULL(i.adres,''),
+                ISNULL(i.telefon,''),
+                ISNULL(i.aciklama,''),
+                CAST(ISNULL(i.latitude, 0) AS FLOAT),
+                CAST(ISNULL(i.longitude, 0) AS FLOAT),
+                ISNULL(h.hizmet_sayisi, 0) AS hizmet_sayisi,
+                ISNULL(c.calisan_sayisi, 0) AS calisan_sayisi
+            FROM isletmeler i
+            LEFT JOIN (
+                SELECT isletme_id, COUNT(*) AS hizmet_sayisi
+                FROM hizmetler
+                WHERE ISNULL(aktif,1)=1
+                GROUP BY isletme_id
+            ) h ON h.isletme_id = i.id
+            LEFT JOIN (
+                SELECT isletme_id, COUNT(*) AS calisan_sayisi
+                FROM calisanlar
+                WHERE ISNULL(aktif,1)=1
+                GROUP BY isletme_id
+            ) c ON c.isletme_id = i.id
+            WHERE ISNULL(i.aktif,1)=1
+            ORDER BY i.kayit_tarihi DESC
         """)
-        cols = ['id', 'ad', 'tur', 'adres', 'telefon', 'aciklama']
-        rows = [dict(zip(cols, r)) for r in cur.fetchall()]
-        for r in rows: r['id'] = int(r['id'])
+        cols = ['id', 'ad', 'tur', 'adres', 'telefon', 'aciklama', 'latitude', 'longitude', '_hizmetSayisi', '_calisanSayisi']
+        rows = []
+        for r in cur.fetchall():
+            d = dict(zip(cols, r))
+            d['id'] = int(d['id'])
+            d['latitude'] = float(d['latitude']) if d.get('latitude') else None
+            d['longitude'] = float(d['longitude']) if d.get('longitude') else None
+            d['_hizmetSayisi'] = int(d.get('_hizmetSayisi') or 0)
+            d['_calisanSayisi'] = int(d.get('_calisanSayisi') or 0)
+            rows.append(d)
         con.close()
         return jsonify({'success': True, 'isletmeler': rows})
     except Exception as e:
@@ -315,7 +406,7 @@ def public_hizmetler():
     kategori   = (request.args.get('kategori') or '').strip()
     try:
         con = db(); cur = con.cursor()
-        # JOIN KULLANMIYORUZ - isletmeler aktif kontrolü ayrı
+        # JOIN KULLANMIYORUZ - isletmeler aktif kontrol? ayr?
         sql    = "SELECT id, isletme_id, ad, ISNULL(ad_en,''), kategori, sure, CAST(ucret AS FLOAT) FROM hizmetler WHERE ISNULL(aktif,1)=1"
         params = []
         if isletme_id and isletme_id not in ('null', 'undefined'):
@@ -374,9 +465,9 @@ def public_calisanlar():
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
 
-# ══════════════════════════════════════════════════════════════════
-# MÜSAİT SAATLER
-# ══════════════════════════════════════════════════════════════════
+# ??????????????????????????????????????????????????????????????????
+# M?SA?T SAATLER
+# ??????????????????????????????????????????????????????????????????
 def zaman_str(v):
     if v is None: return '09:00'
     if hasattr(v, 'strftime'): return v.strftime('%H:%M')
@@ -425,7 +516,7 @@ def musait_saatler():
 
         if kapali:
             con.close()
-            return jsonify({'success': True, 'musait_saatler': [], 'mesaj': 'İşletme bu gün kapalıdır.'})
+            return jsonify({'success': True, 'musait_saatler': [], 'mesaj': 'İşletme bugün kapalıdır.'})
 
         def t2m(s):
             h, m = map(int, s.split(':'))
@@ -445,7 +536,7 @@ def musait_saatler():
         dolu = {r[0] for r in cur.fetchall()}
         con.close()
 
-        # Tüm saatleri dolu/boş bilgisiyle döndür
+        # T?m saatleri dolu/bo? bilgisiyle d?nd?r
         tum_slotlar = [{'saat': s, 'dolu': s in dolu} for s in slotlar]
         return jsonify({'success': True,
                         'musait_saatler': [s for s in slotlar if s not in dolu],
@@ -454,9 +545,9 @@ def musait_saatler():
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
 
-# ══════════════════════════════════════════════════════════════════
+# ??????????????????????????????????????????????????????????????????
 # RANDEVU AL
-# ══════════════════════════════════════════════════════════════════
+# ??????????????????????????????????????????????????????????????????
 @app.route('/api/randevu-al', methods=['POST'])
 def randevu_al():
     d           = request.get_json(force=True, silent=True) or {}
@@ -511,7 +602,8 @@ def randevularim():
         sql = """
             SELECT r.id, CONVERT(VARCHAR(10),r.tarih,23), CONVERT(VARCHAR(5),r.saat,108),
                    r.durum, ISNULL(r.notlar,''), r.musteri_adi, r.musteri_telefon,
-                   ISNULL(i.ad,''), ISNULL(c.ad,''), ISNULL(h.ad,''),
+                   r.isletme_id, r.hizmet_id,
+                   ISNULL(i.ad,''), ISNULL(c.ad,''), ISNULL(h.ad,''), ISNULL(h.ad_en,''),
                    CAST(ISNULL(h.ucret,0) AS FLOAT)
             FROM randevular r
             LEFT JOIN isletmeler i ON r.isletme_id=i.id
@@ -519,7 +611,7 @@ def randevularim():
             LEFT JOIN hizmetler  h ON r.hizmet_id=h.id
         """
         cols = ['id','tarih','saat','durum','notlar','musteri_adi','musteri_telefon',
-                'isletme_adi','calisan_adi','hizmet_adi','ucret']
+                'isletme_id','hizmet_id','isletme_adi','calisan_adi','hizmet_adi','hizmet_adi_en','ucret']
         if 'user_id' in session:
             cur.execute(sql + " WHERE r.kullanici_id=? ORDER BY r.tarih DESC,r.saat DESC", session['user_id'])
         else:
@@ -543,287 +635,41 @@ def randevu_iptal(rid):
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
 
-# ══════════════════════════════════════════════════════════════════
-# ADMİN PANELİ
-# ══════════════════════════════════════════════════════════════════
-def admin_req(f):
-    @wraps(f)
-    def wrapper(*a, **kw):
-        if not session.get('is_admin'):
-            return jsonify({'success': False, 'message': '⛔ Yetkisiz!'}), 403
-        return f(*a, **kw)
-    return wrapper
-
-@app.route('/api/admin/isletmeler')
-@admin_req
-def admin_isletmeler():
+# ??????????????????????????????????????????????????????????????????
+def _detect_local_ip():
+    # LAN IP detection for link sharing on same network.
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
-        con = db(); cur = con.cursor()
-        cur.execute("""
-            SELECT i.id, i.ad, i.tur, ISNULL(i.adres,''), ISNULL(i.telefon,''),
-                   ISNULL(i.aciklama,''), ISNULL(i.aktif,1),
-                   CONVERT(VARCHAR(16),i.kayit_tarihi,120),
-                   (SELECT COUNT(*) FROM hizmetler  h WHERE h.isletme_id=i.id AND ISNULL(h.aktif,1)=1),
-                   (SELECT COUNT(*) FROM calisanlar c WHERE c.isletme_id=i.id AND ISNULL(c.aktif,1)=1)
-            FROM isletmeler i ORDER BY i.kayit_tarihi DESC
-        """)
-        cols = ['id','ad','tur','adres','telefon','aciklama','aktif','kayit_tarihi','hizmet_sayisi','calisan_sayisi']
-        rows = []
-        for r in cur.fetchall():
-            d = dict(zip(cols, r)); d['aktif'] = bool(d['aktif']); rows.append(d)
-        con.close()
-        return jsonify({'success': True, 'isletmeler': rows})
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)}), 500
+        sock.connect(("8.8.8.8", 80))
+        return sock.getsockname()[0]
+    except Exception:
+        try:
+            return socket.gethostbyname(socket.gethostname())
+        except Exception:
+            return "127.0.0.1"
+    finally:
+        sock.close()
 
-@app.route('/api/admin/isletme-ekle', methods=['POST'])
-@admin_req
-def admin_isletme_ekle():
-    d = request.json or {}
-    if not d.get('ad') or not d.get('tur'):
-        return jsonify({'success': False, 'message': 'Ad ve tür zorunludur!'}), 400
-    try:
-        con = db(); cur = con.cursor()
-        cur.execute("INSERT INTO isletmeler(ad,tur,adres,telefon,aciklama,aktif) VALUES(?,?,?,?,?,1)",
-                    d['ad'], d['tur'], d.get('adres',''), d.get('telefon',''), d.get('aciklama',''))
-        con.commit()
-        cur.execute("SELECT TOP 1 id FROM isletmeler ORDER BY id DESC")
-        row = cur.fetchone()
-        if row:
-            yeni_id = int(row[0])
-            for g in range(1, 8):
-                cur.execute("SELECT COUNT(*) FROM calisma_saatleri WHERE isletme_id=? AND gun_no=?", yeni_id, g)
-                if cur.fetchone()[0] == 0:
-                    cur.execute("INSERT INTO calisma_saatleri(isletme_id,gun_no,acilis,kapanis,kapali) VALUES(?,?,'09:00','19:00',?)",
-                                yeni_id, g, 1 if g == 7 else 0)
-            con.commit()
-        con.close()
-        return jsonify({'success': True, 'message': '✅ İşletme eklendi!'})
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)}), 500
 
-@app.route('/api/admin/isletme-guncelle/<int:iid>', methods=['PUT'])
-@admin_req
-def admin_isletme_guncelle(iid):
-    d = request.json or {}
-    try:
-        con = db(); cur = con.cursor()
-        cur.execute("UPDATE isletmeler SET ad=?,tur=?,adres=?,telefon=?,aciklama=?,aktif=? WHERE id=?",
-                    d['ad'], d['tur'], d.get('adres',''), d.get('telefon',''),
-                    d.get('aciklama',''), 1 if d.get('aktif',True) else 0, iid)
-        con.commit(); con.close()
-        return jsonify({'success': True, 'message': '✅ İşletme güncellendi!'})
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)}), 500
-
-@app.route('/api/admin/isletme-sil/<int:iid>', methods=['DELETE'])
-@admin_req
-def admin_isletme_sil(iid):
-    try:
-        con = db(); cur = con.cursor()
-        cur.execute('DELETE FROM calisma_saatleri WHERE isletme_id=?', iid)
-        cur.execute('DELETE FROM tatil_gunleri    WHERE isletme_id=?', iid)
-        cur.execute('DELETE FROM isletmeler WHERE id=?', iid)
-        con.commit(); con.close()
-        return jsonify({'success': True, 'message': '✅ İşletme silindi!'})
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)}), 500
-
-@app.route('/api/admin/hizmetler')
-@admin_req
-def admin_hizmetler():
-    iid = request.args.get('isletme_id')
-    try:
-        con = db(); cur = con.cursor()
-        if iid:
-            cur.execute("""
-                SELECT h.id,h.isletme_id,h.ad,h.kategori,h.sure,CAST(h.ucret AS FLOAT),
-                       ISNULL(h.aktif,1),ISNULL(i.ad,'')
-                FROM hizmetler h LEFT JOIN isletmeler i ON h.isletme_id=i.id
-                WHERE h.isletme_id=? ORDER BY h.kategori,h.ad
-            """, int(iid))
-        else:
-            cur.execute("""
-                SELECT h.id,h.isletme_id,h.ad,h.kategori,h.sure,CAST(h.ucret AS FLOAT),
-                       ISNULL(h.aktif,1),ISNULL(i.ad,'')
-                FROM hizmetler h LEFT JOIN isletmeler i ON h.isletme_id=i.id
-                ORDER BY i.ad,h.kategori,h.ad
-            """)
-        cols = ['id','isletme_id','ad','kategori','sure','ucret','aktif','isletme_adi']
-        rows = []
-        for r in cur.fetchall():
-            d = dict(zip(cols,r)); d['aktif']=bool(d['aktif']); d['ucret']=float(d['ucret']); rows.append(d)
-        con.close()
-        return jsonify({'success': True, 'hizmetler': rows})
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)}), 500
-
-@app.route('/api/admin/hizmet-ekle', methods=['POST'])
-@admin_req
-def admin_hizmet_ekle():
-    d = request.json or {}
-    try:
-        con = db(); cur = con.cursor()
-        cur.execute("INSERT INTO hizmetler(isletme_id,ad,kategori,sure,ucret,aktif) VALUES(?,?,?,?,?,1)",
-                    int(d['isletme_id']), d['ad'], d.get('kategori','berber'),
-                    int(d.get('sure',30)), float(d.get('ucret',0)))
-        con.commit(); con.close()
-        return jsonify({'success': True, 'message': '✅ Hizmet eklendi!'})
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)}), 500
-
-@app.route('/api/admin/hizmet-guncelle/<int:hid>', methods=['PUT'])
-@admin_req
-def admin_hizmet_guncelle(hid):
-    d = request.json or {}
-    try:
-        con = db(); cur = con.cursor()
-        cur.execute("UPDATE hizmetler SET ad=?,kategori=?,sure=?,ucret=?,aktif=? WHERE id=?",
-                    d['ad'], d['kategori'], int(d['sure']), float(d['ucret']),
-                    1 if d.get('aktif',True) else 0, hid)
-        con.commit(); con.close()
-        return jsonify({'success': True, 'message': '✅ Hizmet güncellendi!'})
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)}), 500
-
-@app.route('/api/admin/hizmet-sil/<int:hid>', methods=['DELETE'])
-@admin_req
-def admin_hizmet_sil(hid):
-    try:
-        con = db(); cur = con.cursor()
-        cur.execute('DELETE FROM hizmetler WHERE id=?', hid); con.commit(); con.close()
-        return jsonify({'success': True, 'message': '✅ Hizmet silindi!'})
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)}), 500
-
-@app.route('/api/admin/calisanlar')
-@admin_req
-def admin_calisanlar():
-    iid = request.args.get('isletme_id')
-    try:
-        con = db(); cur = con.cursor()
-        if iid:
-            cur.execute("""
-                SELECT c.id,c.isletme_id,c.ad,c.uzmanlik,ISNULL(c.telefon,''),ISNULL(c.aktif,1),ISNULL(i.ad,'')
-                FROM calisanlar c LEFT JOIN isletmeler i ON c.isletme_id=i.id
-                WHERE c.isletme_id=? ORDER BY c.ad
-            """, int(iid))
-        else:
-            cur.execute("""
-                SELECT c.id,c.isletme_id,c.ad,c.uzmanlik,ISNULL(c.telefon,''),ISNULL(c.aktif,1),ISNULL(i.ad,'')
-                FROM calisanlar c LEFT JOIN isletmeler i ON c.isletme_id=i.id ORDER BY i.ad,c.ad
-            """)
-        cols = ['id','isletme_id','ad','uzmanlik','telefon','aktif','isletme_adi']
-        rows = []
-        for r in cur.fetchall():
-            d = dict(zip(cols,r)); d['aktif']=bool(d['aktif']); rows.append(d)
-        con.close()
-        return jsonify({'success': True, 'calisanlar': rows})
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)}), 500
-
-@app.route('/api/admin/calisan-ekle', methods=['POST'])
-@admin_req
-def admin_calisan_ekle():
-    d = request.json or {}
-    try:
-        con = db(); cur = con.cursor()
-        cur.execute("INSERT INTO calisanlar(isletme_id,ad,uzmanlik,telefon,aktif) VALUES(?,?,?,?,1)",
-                    int(d['isletme_id']), d['ad'], d.get('uzmanlik','berber'), d.get('telefon',''))
-        con.commit(); con.close()
-        return jsonify({'success': True, 'message': '✅ Çalışan eklendi!'})
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)}), 500
-
-@app.route('/api/admin/calisan-guncelle/<int:cid>', methods=['PUT'])
-@admin_req
-def admin_calisan_guncelle(cid):
-    d = request.json or {}
-    try:
-        con = db(); cur = con.cursor()
-        cur.execute("UPDATE calisanlar SET ad=?,uzmanlik=?,telefon=?,aktif=? WHERE id=?",
-                    d['ad'], d['uzmanlik'], d.get('telefon',''),
-                    1 if d.get('aktif',True) else 0, cid)
-        con.commit(); con.close()
-        return jsonify({'success': True, 'message': '✅ Çalışan güncellendi!'})
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)}), 500
-
-@app.route('/api/admin/calisan-sil/<int:cid>', methods=['DELETE'])
-@admin_req
-def admin_calisan_sil(cid):
-    try:
-        con = db(); cur = con.cursor()
-        cur.execute('DELETE FROM calisanlar WHERE id=?', cid); con.commit(); con.close()
-        return jsonify({'success': True, 'message': '✅ Çalışan silindi!'})
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)}), 500
-
-@app.route('/api/admin/tum-randevular')
-@admin_req
-def admin_tum_randevular():
-    try:
-        con = db(); cur = con.cursor()
-        cur.execute("""
-            SELECT r.id, CONVERT(VARCHAR(10),r.tarih,23), CONVERT(VARCHAR(5),r.saat,108),
-                   r.durum, ISNULL(r.notlar,''), r.musteri_adi, r.musteri_telefon,
-                   ISNULL(k.ad,''), ISNULL(i.ad,''), ISNULL(c.ad,''),
-                   ISNULL(h.ad,''), CAST(ISNULL(h.ucret,0) AS FLOAT)
-            FROM randevular r
-            LEFT JOIN kullanicilar k ON r.kullanici_id=k.id
-            LEFT JOIN isletmeler   i ON r.isletme_id=i.id
-            LEFT JOIN calisanlar   c ON r.calisan_id=c.id
-            LEFT JOIN hizmetler    h ON r.hizmet_id=h.id
-            ORDER BY r.tarih DESC, r.saat DESC
-        """)
-        cols = ['id','tarih','saat','durum','notlar','musteri_adi','musteri_telefon',
-                'kullanici_adi','isletme_adi','calisan_adi','hizmet_adi','ucret']
-        rows = [dict(zip(cols, r)) for r in cur.fetchall()]
-        con.close()
-        return jsonify({'success': True, 'randevular': rows})
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)}), 500
-
-@app.route('/api/admin/randevu-durum-guncelle/<int:rid>', methods=['POST'])
-@admin_req
-def admin_randevu_durum(rid):
-    durum = (request.json or {}).get('durum', '')
-    if durum not in ('onaylandi','tamamlandi','iptal','bekliyor'):
-        return jsonify({'success': False, 'message': 'Geçersiz durum!'}), 400
-    try:
-        con = db(); cur = con.cursor()
-        cur.execute("UPDATE randevular SET durum=? WHERE id=?", durum, rid)
-        con.commit(); con.close()
-        return jsonify({'success': True, 'message': '✅ Durum güncellendi!'})
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)}), 500
-
-@app.route('/api/admin/istatistikler')
-@admin_req
-def admin_istatistikler():
-    try:
-        con = db(); cur = con.cursor()
-        def say(sql): cur.execute(sql); return cur.fetchone()[0]
-        stats = {
-            'isletme'       : say("SELECT COUNT(*) FROM isletmeler WHERE ISNULL(aktif,1)=1"),
-            'calisan'       : say("SELECT COUNT(*) FROM calisanlar WHERE ISNULL(aktif,1)=1"),
-            'hizmet'        : say("SELECT COUNT(*) FROM hizmetler  WHERE ISNULL(aktif,1)=1"),
-            'toplam_randevu': say("SELECT COUNT(*) FROM randevular"),
-            'bekleyen'      : say("SELECT COUNT(*) FROM randevular WHERE durum='bekliyor'"),
-            'onaylanan'     : say("SELECT COUNT(*) FROM randevular WHERE durum='onaylandi'"),
-            'tamamlanan'    : say("SELECT COUNT(*) FROM randevular WHERE durum='tamamlandi'"),
-            'kullanici'     : say("SELECT COUNT(*) FROM kullanicilar WHERE ISNULL(is_admin,0)=0"),
-        }
-        con.close()
-        return jsonify({'success': True, 'stats': stats})
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)}), 500
-
-# ══════════════════════════════════════════════════════════════════
 if __name__ == '__main__':
-    try: local_ip = socket.gethostbyname(socket.gethostname())
-    except: local_ip = '127.0.0.1'
-    print(f"\n🌐 http://localhost:5000")
-    if local_ip != '127.0.0.1': print(f"📱 http://{local_ip}:5000")
+    host = os.getenv('APP_HOST', '0.0.0.0')
+    port = int(os.getenv('APP_PORT', '5000'))
+    # Varsayılanı prod-benzeri tut: debug kapalı, istenirse env ile aç.
+    debug = os.getenv('APP_DEBUG', '0').strip().lower() in ('1', 'true', 'yes', 'on')
+    use_reloader = os.getenv('APP_RELOADER', '0').strip().lower() in ('1', 'true', 'yes', 'on')
+
+    local_ip = _detect_local_ip()
+    print(f"\nLocal: http://localhost:{port}")
+    if local_ip != '127.0.0.1':
+        print(f"LAN:   http://{local_ip}:{port}")
     print("=" * 50)
-    app.run(debug=True, host='0.0.0.0', port=5000)
+
+    app.run(debug=debug, host=host, port=port, use_reloader=use_reloader)
+
+
+
+
+
+
+
+
