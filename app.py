@@ -652,12 +652,12 @@ def _detect_local_ip():
 
 
 if __name__ == '__main__':
-    host = os.getenv('APP_HOST', '0.0.0.0')
-    port = int(os.getenv('APP_PORT', '5000'))
-    # Varsayılanı prod-benzeri tut: debug kapalı, istenirse env ile aç.
+    host = '0.0.0.0'
+    port = int(os.getenv('PORT', '5000'))
     debug = os.getenv('APP_DEBUG', '0').strip().lower() in ('1', 'true', 'yes', 'on')
     use_reloader = os.getenv('APP_RELOADER', '0').strip().lower() in ('1', 'true', 'yes', 'on')
 
+    app.run(debug=debug, host=host, port=port, use_reloader=use_reloader)
     local_ip = _detect_local_ip()
     print(f"\nLocal: http://localhost:{port}")
     if local_ip != '127.0.0.1':
